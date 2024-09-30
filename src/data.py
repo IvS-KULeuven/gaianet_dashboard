@@ -108,7 +108,7 @@ class DataLoader():
                 best_freq = freq[np.argmax(ampl)]
                 P = 2.0/best_freq
                 time = np.mod(time, P)/P
-                title = title+f' f:{best_freq:0.2f}'
+                title = title+f' freq:{best_freq:0.2f}'
         else:
             time, mag, err = [], [], []
             title = ''

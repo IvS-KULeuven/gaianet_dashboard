@@ -33,6 +33,8 @@ def build_panel(plotter: DataLoader,
                 n_cols: int = 3):
 
     fold_check = pn.widgets.Checkbox(name='Fold light curves', value=False)
+    resample_button = pn.widgets.Button(
+        name="Reload source ids", button_type="success")
     sids_print = pn.widgets.TextAreaInput(
         value="", width=200, height=150, disabled=True
     )
@@ -81,6 +83,7 @@ def build_panel(plotter: DataLoader,
         return x_bounds & y_bounds
 
     def update_selection_box(bounds: tuple[float, float, float, float],
+                             value: bool = False,
                              n_rows: int = 4,
                              n_cols: int = 4):
         n_plots = n_rows*n_cols
@@ -98,7 +101,7 @@ def build_panel(plotter: DataLoader,
 
     box_plot = hv.DynamicMap(partial(update_selection_box,
                                      n_rows=n_rows, n_cols=n_cols),
-                             streams=[box_selector])
+                             streams=[box_selector, resample_button.param.value])
 
     def update_data_map(data: list[int],
                         plot_function: Callable,
@@ -125,7 +128,7 @@ def build_panel(plotter: DataLoader,
     return pn.Row(pn.Column(pn.pane.HoloViews(bg * fg * box_plot),
                             sids_print,
                             sids_copy_button),
-                  pn.Column(fold_check, tabs))
+                  pn.Column(pn.Row(fold_check, resample_button), tabs))
 
 
 if __name__.startswith("bokeh"):
