@@ -1,0 +1,10 @@
+[core]
+    remote = azure_remote
+    check_update = false
+[cache]
+    type = reflink, hardlink, symlink
+['remote "azure_remote"']
+    url = azure://gaia/data_version_control
+    allow_anonymous_login = true
+    account_name = phuijse
+    jobs = 4

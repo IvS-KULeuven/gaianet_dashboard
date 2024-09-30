@@ -27,7 +27,10 @@ short_names = {0: 'CEP', 1: 'ACV', 2: 'RR', 3: 'BCEP',
                15: 'SPB', 16: 'SYST|ZAND'}
 
 
-def build_panel(data_path, df_meta, n_rows=3, n_cols=3):
+def build_panel(plotter: DataLoader,
+                df_emb: pl.DataFrame,
+                n_rows: int = 3,
+                n_cols: int = 3):
 
     fold_check = pn.widgets.Checkbox(name='Fold light curves', value=False)
     sids_print = pn.widgets.TextAreaInput(
@@ -40,10 +43,10 @@ def build_panel(data_path, df_meta, n_rows=3, n_cols=3):
         code="navigator.clipboard.writeText(source.value);"
     )
     points = hv.Points(
-        df_meta.select(['sourceid', 'embedding_0', 'embedding_1']).to_pandas(),
+        df_emb.select(['sourceid', 'embedding_0', 'embedding_1']).to_pandas(),
         kdims=['embedding_0', 'embedding_1']
     )
-    labeled_meta = df_meta.filter(
+    labeled_meta = df_emb.filter(
         pl.col('label').ne(-1)
     ).select(['sourceid', 'embedding_0', 'embedding_1', 'label']).with_columns(
         pl.col('label').replace_strict(short_names).alias('class_name')
@@ -81,7 +84,7 @@ def build_panel(data_path, df_meta, n_rows=3, n_cols=3):
                              n_rows: int = 4,
                              n_cols: int = 4):
         n_plots = n_rows*n_cols
-        sids = df_meta.filter(
+        sids = df_emb.filter(
             in_bounds_expr(bounds, 'embedding_0', 'embedding_1')
         ).select('sourceid').to_series()
         if len(sids) > n_plots:
@@ -106,7 +109,6 @@ def build_panel(data_path, df_meta, n_rows=3, n_cols=3):
         return hv.Layout(plots).cols(n_cols).opts(shared_axes=False)
 
     pn.extension()
-    plotter = DataLoader(data_path)
     update_lc = partial(update_data_map,
                         plot_function=plotter.plot_lightcurve,
                         n_cols=n_cols, n_rows=n_rows)
@@ -128,16 +130,14 @@ def build_panel(data_path, df_meta, n_rows=3, n_cols=3):
 
 if __name__.startswith("bokeh"):
     parser = argparse.ArgumentParser(description='Panel')
-    parser.add_argument('path', type=str)
+    parser.add_argument('data_dir', type=str)
+    parser.add_argument('latent_dir', type=str)
     args = parser.parse_args()
-    root_path = Path(args.path)
-    data_path = root_path / 'data' / 'DR3_40obs_20mag_public_with_spectra'
-    emb_path = root_path / 'results' / 'latent_space' / '2'
-    meta_path = root_path / 'data' / 'training_sets' / 'DR3_40obs_20mag_public_with_spectra.parquet'
-
-    df_embedding = pl.scan_parquet(Path(emb_path) / '*.parquet').rename({'source_id': 'sourceid'})
-    df_meta = pl.scan_parquet(meta_path)
-    df_meta = df_meta.join(df_embedding, on='sourceid').collect()
-
-    dashboard = build_panel(data_path, df_meta, n_cols=3, n_rows=4)
+    plotter = DataLoader(Path(args.data_dir))
+    df_emb = pl.scan_parquet(
+        Path(args.latent_dir) / '*.parquet'
+    ).rename(
+        {'source_id': 'sourceid'}
+    ).select(['sourceid', 'embedding_0', 'embedding_1', 'label']).collect()
+    dashboard = build_panel(plotter, df_emb, n_cols=3, n_rows=4)
     dashboard.servable()

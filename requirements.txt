@@ -6,3 +6,5 @@ gaiaxpy
 holoviews
 datashader
 panel
+dvc
+dvc_azure
