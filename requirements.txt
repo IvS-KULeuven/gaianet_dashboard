@@ -1,0 +1,8 @@
+numpy
+polars
+pyarrow
+astropy
+gaiaxpy
+holoviews
+datashader
+panel
