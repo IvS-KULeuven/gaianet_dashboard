@@ -104,7 +104,7 @@ class DataLoader():
                 ampl = ls.power(
                     freq, assume_regular_frequency=True, method='fast'
                 )
-                P = 1.0/freq[np.argmax(ampl)]
+                P = 2.0/freq[np.argmax(ampl)]
                 time = np.mod(time, P)/P
             title = str(sid)
         else:
