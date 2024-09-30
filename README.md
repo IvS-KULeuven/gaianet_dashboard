@@ -3,7 +3,7 @@
 Clone or download the contents of this repository.
 
 ```
-git clone gaianet_dashboard
+git clone https://github.com/IvS-KULeuven/gaianet_dashboard.git
 ```
 
 Create a virtual environment, install the requirements and download the data. This about 15m but it is done only once.
