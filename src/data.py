@@ -93,6 +93,7 @@ class DataLoader():
                         **kwargs):
         if sid is not None:
             time, mag, err = self.get_lightcurve(sid)['g']
+            title = str(sid)
             if folded:
                 freq = np.arange(1e-3, 15.0, 1e-4)
                 ls = LombScargle(time, mag, err)
@@ -104,9 +105,10 @@ class DataLoader():
                 ampl = ls.power(
                     freq, assume_regular_frequency=True, method='fast'
                 )
-                P = 2.0/freq[np.argmax(ampl)]
+                best_freq = freq[np.argmax(ampl)]
+                P = 2.0/best_freq
                 time = np.mod(time, P)/P
-            title = str(sid)
+                title = title+f' f:{best_freq:0.2f}'
         else:
             time, mag, err = [], [], []
             title = ''
