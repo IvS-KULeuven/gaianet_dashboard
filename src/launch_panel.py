@@ -36,7 +36,7 @@ def build_panel(plotter: DataLoader,
     resample_button = pn.widgets.Button(
         name="Reload source ids", button_type="success")
     sids_print = pn.widgets.TextAreaInput(
-        value="", width=200, height=150, disabled=True
+        value="", width=250, height=150, disabled=True
     )
     sids_copy_button = pn.widgets.Button(
         name="✂ Copy source ids to clipboard", button_type="success")
