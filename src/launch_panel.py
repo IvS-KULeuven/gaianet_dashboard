@@ -8,6 +8,7 @@ from holoviews import streams
 import holoviews.operation.datashader as hd
 import panel as pn
 import datashader
+import numpy as np
 
 from data import DataLoader
 
@@ -51,10 +52,9 @@ def build_panel(data_path, df_meta, n_rows=3, n_cols=3):
         labeled_meta.to_pandas(),
         kdims=['embedding_0', 'embedding_1'], vdims=['class_name']
     )
+    aggregator = datashader.by('class_name', datashader.count())
     fg = hd.dynspread(
-        hd.datashade(classes,
-                     aggregator=datashader.by('class_name', datashader.count()),
-                     color_key=colors),
+        hd.datashade(classes, aggregator=aggregator, color_key=colors),
         max_px=3, threshold=0.75, shape='square',
     )
     bg = hd.dynspread(
@@ -68,8 +68,7 @@ def build_panel(data_path, df_meta, n_rows=3, n_cols=3):
 
     initial_bounds = (-1., -1., 1., 1.)
     box_selector = streams.BoundsXY(source=points, bounds=initial_bounds)
-    box_plot = hv.DynamicMap(lambda bounds: hv.Bounds(bounds),
-                             streams=[box_selector])
+    sids_holder = streams.Pipe(data=[])
 
     def in_bounds_expr(bounds: tuple[float, float, float, float],
                        xdim: str,
@@ -78,20 +77,32 @@ def build_panel(data_path, df_meta, n_rows=3, n_cols=3):
         y_bounds = (pl.col(ydim) > bounds[1]) & (pl.col(ydim) < bounds[3])
         return x_bounds & y_bounds
 
-    def update_data_map(bounds: tuple[float, float, float, float],
-                        plot_function: Callable,
-                        n_rows: int = 4,
-                        n_cols: int = 4):
+    def update_selection_box(bounds: tuple[float, float, float, float],
+                             n_rows: int = 4,
+                             n_cols: int = 4):
         n_plots = n_rows*n_cols
         sids = df_meta.filter(
             in_bounds_expr(bounds, 'embedding_0', 'embedding_1')
         ).select('sourceid').to_series()
         if len(sids) > n_plots:
-            sids = sids.head(n_plots)
+            sids = sids.sample(n_plots)
+        sids = sids.to_list()
         sids_print.value = "\n".join([str(s) for s in sids])
-        plots = [plot_function(sid, folded=fold_check.value) for sid in sids]
-        if len(plots) < n_plots:
-            plots += [plot_function(None) for _ in range(n_plots-len(plots))]
+        if len(sids) < n_plots:
+            sids += [None]*(n_plots-len(sids))
+        sids_holder.send(np.array(sids))
+        return hv.Bounds(bounds)
+
+    box_plot = hv.DynamicMap(partial(update_selection_box,
+                                     n_rows=n_rows, n_cols=n_cols),
+                             streams=[box_selector])
+
+    def update_data_map(data: list[int],
+                        plot_function: Callable,
+                        n_rows: int = 4,
+                        n_cols: int = 4,
+                        folded: bool = False):
+        plots = [plot_function(sid, folded=folded) for sid in data]
         return hv.Layout(plots).cols(n_cols).opts(shared_axes=False)
 
     pn.extension()
@@ -103,21 +114,19 @@ def build_panel(data_path, df_meta, n_rows=3, n_cols=3):
                         plot_function=plotter.plot_spectra,
                         n_cols=n_cols, n_rows=n_rows)
     # stats_dmap = hv.DynamicMap(update_stats, streams=[box])
+    lc_streams = {'data': sids_holder, 'folded': fold_check.param.value}
     tabs = pn.Tabs(
-        ('Light curves', hv.DynamicMap(update_lc, streams=[box_selector])),
-        ('Sampled spectra', hv.DynamicMap(update_xp, streams=[box_selector]))
+        ('Light curves', hv.DynamicMap(update_lc, streams=lc_streams)),
+        ('Sampled spectra', hv.DynamicMap(update_xp, streams=[sids_holder])),
+        dynamic=True
     )
     return pn.Row(pn.Column(pn.pane.HoloViews(bg * fg * box_plot),
                             sids_print,
                             sids_copy_button),
                   pn.Column(fold_check, tabs))
 
-# if __name__.startswith("bokeh"):
-#    dashboard = build_panel()
-#    dashboard.servable()
 
-
-if __name__ == "__main__":
+if __name__.startswith("bokeh"):
     parser = argparse.ArgumentParser(description='Panel')
     parser.add_argument('path', type=str)
     args = parser.parse_args()
@@ -131,4 +140,4 @@ if __name__ == "__main__":
     df_meta = df_meta.join(df_embedding, on='sourceid').collect()
 
     dashboard = build_panel(data_path, df_meta, n_cols=3, n_rows=4)
-    dashboard.show(port=5007)
+    dashboard.servable()

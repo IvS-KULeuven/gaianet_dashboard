@@ -1,5 +1,5 @@
 # GaiaNet dashboard
 
 ```
-python src/launch_panel.py ../gaia_unsupervised/
+panel serve src/launch_panel.py --show --args ../gaia_unsupervised/
 ```
