@@ -6,7 +6,7 @@ Clone or download the contents of this repository.
 git clone https://github.com/IvS-KULeuven/gaianet_dashboard.git
 ```
 
-Create a virtual environment, install the requirements and download the data. This takes about 15m but it is done only once.
+Create a virtual environment, install the requirements and download the data. This operation takes about 15m and uses 27GB of disk space but it is done only once.
 
 ```
 cd gaianet_dashboard
