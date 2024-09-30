@@ -10,7 +10,7 @@ Create a virtual environment, install the requirements and download the data. Th
 
 ```
 cd gaianet_dashboard
-virtualenv dashboard_env
+python -m venv dashboard_env
 source dashboard_env/bin/activate
 pip install -r requirements.txt
 dvc pull
