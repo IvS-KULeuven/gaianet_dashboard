@@ -24,7 +24,6 @@ conda create -n dashboard_env python=3.12 pip
 conda activate dashboard_env
 pip install -r requirements.txt
 dvc pull
-
 ```
 
 

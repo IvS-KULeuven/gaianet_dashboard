@@ -8,3 +8,4 @@ datashader
 panel
 dvc
 dvc_azure
+jupyter
