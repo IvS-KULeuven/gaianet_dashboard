@@ -9,9 +9,11 @@ import holoviews.operation.datashader as hd
 import panel as pn
 import datashader
 import numpy as np
+import geoviews as gv
+from cartopy import crs
 
 from data import DataLoader
-
+from preprocess import preprocess_coordinates
 
 colors = [
     'blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink',
@@ -31,7 +33,10 @@ def build_panel(plotter: DataLoader,
                 df_emb: pl.DataFrame,
                 n_rows: int = 3,
                 n_cols: int = 3):
-
+    pn.extension()
+    hv.extension('bokeh')
+    gv.extension('bokeh')
+    # GUI widgets
     fold_check = pn.widgets.Checkbox(name='Fold light curves', value=False)
     resample_button = pn.widgets.Button(
         name="Reload source ids", button_type="success")
@@ -44,7 +49,13 @@ def build_panel(plotter: DataLoader,
         args={"source": sids_print},
         code="navigator.clipboard.writeText(source.value);"
     )
-    points = hv.Points(
+    # Sky map
+    long, lat = df_emb.select(['L', 'B']).to_numpy().T
+    long, lat = preprocess_coordinates(long, lat, origin=0.0)
+    sky = gv.Points((long, lat), ['Longitude', 'Latitude'])
+    bg_sky = hd.dynspread(hd.datashade(sky)).opts(projection=crs.Mollweide())
+    # Embedding plot
+    embedding_unlabeled = hv.Points(
         df_emb.select(['sourceid', 'embedding_0', 'embedding_1']).to_pandas(),
         kdims=['embedding_0', 'embedding_1']
     )
@@ -53,26 +64,25 @@ def build_panel(plotter: DataLoader,
     ).select(['sourceid', 'embedding_0', 'embedding_1', 'label']).with_columns(
         pl.col('label').replace_strict(short_names).alias('class_name')
     )
-    classes = hv.Points(
+    embedding_labeled = hv.Points(
         labeled_meta.to_pandas(),
         kdims=['embedding_0', 'embedding_1'], vdims=['class_name']
     )
     aggregator = datashader.by('class_name', datashader.count())
-    fg = hd.dynspread(
-        hd.datashade(classes, aggregator=aggregator, color_key=colors),
+    fg_emb = hd.dynspread(
+        hd.datashade(embedding_labeled, aggregator=aggregator, color_key=colors),
         max_px=3, threshold=0.75, shape='square',
-    )
-    bg = hd.dynspread(
-        hd.datashade(points, cmap="gray", cnorm="eq_hist"),
-        max_px=3, threshold=0.75, shape='circle',
-    )
-    bg = bg.opts(width=650, height=500,
-                 tools=['box_select'],
-                 active_tools=['box_select', 'wheel_zoom'])
-    fg = fg.opts(legend_position='right', fontsize={'legend': 8})
+    ).opts(legend_position='right', fontsize={'legend': 8})
 
-    initial_bounds = (-1., -1., 1., 1.)
-    box_selector = streams.BoundsXY(source=points, bounds=initial_bounds)
+    bg_emb = hd.dynspread(
+        hd.datashade(embedding_unlabeled, cmap="gray", cnorm="eq_hist"),
+        max_px=3, threshold=0.75, shape='circle',
+    ).opts(width=650, height=500,
+           tools=['box_select'],
+           active_tools=['box_select', 'wheel_zoom'])
+    # Box selector
+    box_selector = streams.BoundsXY(source=embedding_unlabeled,
+                                    bounds=(-1., -1., 1., 1.))
     sids_holder = streams.Pipe(data=[])
 
     def in_bounds_expr(bounds: tuple[float, float, float, float],
@@ -96,12 +106,14 @@ def build_panel(plotter: DataLoader,
         sids_print.value = "\n".join([str(s) for s in sids])
         if len(sids) < n_plots:
             sids += [None]*(n_plots-len(sids))
+        # Sending source ids to the pipe triggers
+        # update on light curve, spectra and sky dynamic maps
         sids_holder.send(np.array(sids))
         return hv.Bounds(bounds)
 
-    box_plot = hv.DynamicMap(partial(update_selection_box,
-                                     n_rows=n_rows, n_cols=n_cols),
-                             streams=[box_selector, resample_button.param.value])
+    box_plot = hv.DynamicMap(
+        partial(update_selection_box, n_rows=n_rows, n_cols=n_cols),
+        streams=[box_selector, resample_button.param.value])
 
     def update_data_map(data: list[int],
                         plot_function: Callable,
@@ -111,7 +123,19 @@ def build_panel(plotter: DataLoader,
         plots = [plot_function(sid, folded=folded) for sid in data]
         return hv.Layout(plots).cols(n_cols).opts(shared_axes=False)
 
-    pn.extension()
+    def update_sky_map(data: list[int], origin=0):
+        data = [x for x in data if x is not None]
+        if len(data) > 0:
+            long, lat = df_emb.filter(
+                pl.col('sourceid').is_in(data)
+            ).select(['L', 'B']).to_numpy().T
+            long, lat = preprocess_coordinates(long, lat, origin=origin)
+        else:
+            long, lat = [], []
+        fg_sky = gv.Points((long, lat), ['Longitude', 'Latitude'])
+        return fg_sky.opts(width=700, height=500, color='red', size=10,
+                           projection=crs.Mollweide())
+
     update_lc = partial(update_data_map,
                         plot_function=plotter.plot_lightcurve,
                         n_cols=n_cols, n_rows=n_rows)
@@ -123,9 +147,10 @@ def build_panel(plotter: DataLoader,
     tabs = pn.Tabs(
         ('Light curves', hv.DynamicMap(update_lc, streams=lc_streams)),
         ('Sampled spectra', hv.DynamicMap(update_xp, streams=[sids_holder])),
+        ('Sky map', bg_sky*hv.DynamicMap(update_sky_map, streams=[sids_holder])),
         dynamic=True
     )
-    return pn.Row(pn.Column(pn.pane.HoloViews(bg * fg * box_plot),
+    return pn.Row(pn.Column(pn.pane.HoloViews(bg_emb * fg_emb * box_plot),
                             sids_print,
                             sids_copy_button),
                   pn.Column(pn.Row(fold_check, resample_button), tabs))
@@ -136,11 +161,21 @@ if __name__.startswith("bokeh"):
     parser.add_argument('data_dir', type=str)
     parser.add_argument('latent_dir', type=str)
     args = parser.parse_args()
-    plotter = DataLoader(Path(args.data_dir))
+    data_dir = Path(args.data_dir)
+    latent_dir = Path(args.latent_dir)
+    plotter = DataLoader(data_dir)
     df_emb = pl.scan_parquet(
-        Path(args.latent_dir) / '*.parquet'
+        latent_dir / '2' / '*.parquet'
     ).rename(
         {'source_id': 'sourceid'}
-    ).select(['sourceid', 'embedding_0', 'embedding_1', 'label']).collect()
+    ).select(
+        ['sourceid', 'embedding_0', 'embedding_1', 'label']
+    )
+    df_source = pl.scan_parquet(
+        latent_dir / 'meta.parquet'
+    ).select(
+        ['sourceid', 'L', 'B', 'class']
+    )
+    df_emb = df_emb.join(df_source, on='sourceid', how='left').collect()
     dashboard = build_panel(plotter, df_emb, n_cols=3, n_rows=4)
     dashboard.servable()

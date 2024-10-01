@@ -30,13 +30,15 @@ class DataLoader():
             for col in ['obstimes', 'val', 'valerr']:
                 self.lc_cols.append(f'{band}_{col}')
 
-    def get_lightcurve(self, sid: int) -> dict[str, np.ndarray]:
+    def get_lightcurve(self,
+                       sid: int,
+                       pack_kwargs: dict = {}) -> dict[str, np.ndarray]:
         if sid not in self.lc_index:
             raise ValueError(f"No light curves found for source {sid}")
         lc_row = pl.scan_parquet(
             self.lc_dir / self.lc_index[sid]
         ).select(self.lc_cols).filter(pl.col('sourceid').eq(sid)).collect()
-        return pack_light_curve(lc_row, remove_extreme_errors=True)
+        return pack_light_curve(lc_row, **pack_kwargs)
 
     def get_continuous_spectra(self, sid: int) -> dict[str, np.ndarray]:
         if sid not in self.xp_index:

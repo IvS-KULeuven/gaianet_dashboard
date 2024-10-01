@@ -9,3 +9,5 @@ panel
 dvc
 dvc_azure
 jupyter
+geoviews
+cartopy
