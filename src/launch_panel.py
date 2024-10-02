@@ -2,18 +2,16 @@ from pathlib import Path
 import argparse
 from functools import partial
 from typing import Callable
-import polars as pl
 import holoviews as hv
 from holoviews import streams
 import holoviews.operation.datashader as hd
 import panel as pn
 import datashader
-import numpy as np
 import geoviews as gv
 from cartopy import crs
 
-from data import DataLoader
-from preprocess import preprocess_coordinates
+from data_loader import DataLoader
+from embedding import Embedding
 
 colors = [
     'blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink',
@@ -22,15 +20,9 @@ colors = [
     'turquoise', 'maroon', 'darkblue'
 ]
 
-short_names = {0: 'CEP', 1: 'ACV', 2: 'RR', 3: 'BCEP',
-               4: 'BE', 5: 'SOLAR_LIKE', 6: 'YSO',
-               7: 'CV', 8: 'DSCT|GDOR', 9: 'ECL', 10: 'WD',
-               11: 'ELL', 12: 'LPV', 13: 'QSO', 14: 'RS',
-               15: 'SPB', 16: 'SYST|ZAND'}
-
 
 def build_panel(plotter: DataLoader,
-                df_emb: pl.DataFrame,
+                embedding: Embedding,
                 n_rows: int = 3,
                 n_cols: int = 3):
     pn.extension()
@@ -50,25 +42,19 @@ def build_panel(plotter: DataLoader,
         code="navigator.clipboard.writeText(source.value);"
     )
     # Sky map
-    long, lat = df_emb.select(['L', 'B']).to_numpy().T
-    long, lat = preprocess_coordinates(long, lat, origin=0.0)
+    long, lat = embedding.get_galactic_coordinates()
     sky = gv.Points((long, lat), ['Longitude', 'Latitude'])
     bg_sky = hd.dynspread(hd.datashade(sky)).opts(projection=crs.Mollweide())
     # Embedding plot
     embedding_unlabeled = hv.Points(
-        df_emb.select(['sourceid', 'embedding_0', 'embedding_1']).to_pandas(),
-        kdims=['embedding_0', 'embedding_1']
-    )
-    labeled_meta = df_emb.filter(
-        pl.col('label').ne(-1)
-    ).select(['sourceid', 'embedding_0', 'embedding_1', 'label']).with_columns(
-        pl.col('label').replace_strict(short_names).alias('class_name')
+        embedding.get_embedding(),
+        kdims=['x', 'y'], vdims=['sourceid']
     )
     embedding_labeled = hv.Points(
-        labeled_meta.to_pandas(),
-        kdims=['embedding_0', 'embedding_1'], vdims=['class_name']
+        embedding.get_labeled_embedding(),
+        kdims=['x', 'y'], vdims=['label', 'sourceid']
     )
-    aggregator = datashader.by('class_name', datashader.count())
+    aggregator = datashader.by('label', datashader.count())
     fg_emb = hd.dynspread(
         hd.datashade(embedding_labeled, aggregator=aggregator, color_key=colors),
         max_px=3, threshold=0.75, shape='square',
@@ -85,30 +71,18 @@ def build_panel(plotter: DataLoader,
                                     bounds=(-1., -1., 1., 1.))
     sids_holder = streams.Pipe(data=[])
 
-    def in_bounds_expr(bounds: tuple[float, float, float, float],
-                       xdim: str,
-                       ydim: str):
-        x_bounds = (pl.col(xdim) > bounds[0]) & (pl.col(xdim) < bounds[2])
-        y_bounds = (pl.col(ydim) > bounds[1]) & (pl.col(ydim) < bounds[3])
-        return x_bounds & y_bounds
-
     def update_selection_box(bounds: tuple[float, float, float, float],
                              value: bool = False,
                              n_rows: int = 4,
                              n_cols: int = 4):
         n_plots = n_rows*n_cols
-        sids = df_emb.filter(
-            in_bounds_expr(bounds, 'embedding_0', 'embedding_1')
-        ).select('sourceid').to_series()
-        if len(sids) > n_plots:
-            sids = sids.sample(n_plots)
-        sids = sids.to_list()
+        sids = embedding.find_sids_in_box(bounds, how_many=n_plots)
         sids_print.value = "\n".join([str(s) for s in sids])
         if len(sids) < n_plots:
             sids += [None]*(n_plots-len(sids))
         # Sending source ids to the pipe triggers
         # update on light curve, spectra and sky dynamic maps
-        sids_holder.send(np.array(sids))
+        sids_holder.send(sids)
         return hv.Bounds(bounds)
 
     box_plot = hv.DynamicMap(
@@ -123,13 +97,10 @@ def build_panel(plotter: DataLoader,
         plots = [plot_function(sid, folded=folded) for sid in data]
         return hv.Layout(plots).cols(n_cols).opts(shared_axes=False)
 
-    def update_sky_map(data: list[int], origin=0):
+    def update_sky_map(data: list[int]):
         data = [x for x in data if x is not None]
         if len(data) > 0:
-            long, lat = df_emb.filter(
-                pl.col('sourceid').is_in(data)
-            ).select(['L', 'B']).to_numpy().T
-            long, lat = preprocess_coordinates(long, lat, origin=origin)
+            long, lat = embedding.get_galactic_coordinates(data)
         else:
             long, lat = [], []
         fg_sky = gv.Points((long, lat), ['Longitude', 'Latitude'])
@@ -164,18 +135,6 @@ if __name__.startswith("bokeh"):
     data_dir = Path(args.data_dir)
     latent_dir = Path(args.latent_dir)
     plotter = DataLoader(data_dir)
-    df_emb = pl.scan_parquet(
-        latent_dir / '2' / '*.parquet'
-    ).rename(
-        {'source_id': 'sourceid'}
-    ).select(
-        ['sourceid', 'embedding_0', 'embedding_1', 'label']
-    )
-    df_source = pl.scan_parquet(
-        latent_dir / 'meta.parquet'
-    ).select(
-        ['sourceid', 'L', 'B', 'class']
-    )
-    df_emb = df_emb.join(df_source, on='sourceid', how='left').collect()
-    dashboard = build_panel(plotter, df_emb, n_cols=3, n_rows=4)
+    emb = Embedding(latent_dir)
+    dashboard = build_panel(plotter, emb, n_cols=3, n_rows=4)
     dashboard.servable()
