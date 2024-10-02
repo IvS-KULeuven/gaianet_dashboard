@@ -44,7 +44,8 @@ def build_panel(plotter: DataLoader,
     # Sky map
     long, lat = embedding.get_galactic_coordinates()
     sky = gv.Points((long, lat), ['Longitude', 'Latitude'])
-    bg_sky = hd.dynspread(hd.datashade(sky)).opts(projection=crs.Mollweide())
+    bg_sky = hd.dynspread(hd.datashade(sky)).opts(
+        projection=crs.Mollweide(), width=800, height=400)
     # Embedding plot
     embedding_unlabeled = hv.Points(
         embedding.get_embedding(),
@@ -104,8 +105,7 @@ def build_panel(plotter: DataLoader,
         else:
             long, lat = [], []
         fg_sky = gv.Points((long, lat), ['Longitude', 'Latitude'])
-        return fg_sky.opts(width=700, height=500, color='red', size=10,
-                           projection=crs.Mollweide())
+        return fg_sky.opts(color='red', size=10, projection=crs.Mollweide())
 
     update_lc = partial(update_data_map,
                         plot_function=plotter.plot_lightcurve,
