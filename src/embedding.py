@@ -50,7 +50,9 @@ class Embedding:
     def get_labeled_embedding(self) -> dict[str, np.ndarray]:
         labeled_emb = self.emb.filter(
             pl.col('label').ne(-1)
-        ).select(['sourceid', 'embedding_0', 'embedding_1', 'class'])
+        ).select(
+            ['sourceid', 'embedding_0', 'embedding_1', 'class']
+        ).sort('class')
         sids = labeled_emb.select(['sourceid']).to_series().to_numpy()
         labels = labeled_emb.select(['class']).to_series().to_numpy()
         x, y = labeled_emb.select(['embedding_0', 'embedding_1']).to_numpy().T
