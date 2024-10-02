@@ -1,5 +1,6 @@
 from pathlib import Path
 import logging
+import pickle
 import numpy as np
 import polars as pl
 import pandas as pd
@@ -13,24 +14,35 @@ from silencer import suppress_print
 logger = logging.getLogger(__name__)
 
 
+def load_index(path_to_index: Path) -> dict[str, int]:
+    if path_to_index.exists():
+        logger.info('Found parquet index')
+        with open(path_to_index, 'rb') as f:
+            index = pickle.load(f)
+    else:
+        index = {}
+        logger.info('Parquet index not found, building it from scratch')
+        for p in path_to_index.parent.glob('*parquet'):
+            for sid in pl.scan_parquet(p).select('sourceid').collect().to_series().to_list():
+                index[sid] = p.name
+        with open(path_to_index, 'wb') as f:
+            pickle.dump(index, f)
+    return index
+
+
 class DataLoader():
 
     def __init__(self, dataset_dir: Path, bands: list[str] = ['g', 'bp-rp']):
-        lc_index = {}
         self.lc_dir = dataset_dir / 'light_curves'
-        logger.info('Building parquet indexes')
-        for p in self.lc_dir.glob('*parquet'):
-            for sid in pl.scan_parquet(p).select('sourceid').collect().to_series().to_list():
-                lc_index[sid] = p.name
-        xp_index = {}
+        index_path = self.lc_dir / 'index.pkl'
+        self.lc_index = load_index(index_path)
+        logger.info(f'Found {len(self.lc_index)} sources with light curves')
         self.xp_dir = dataset_dir / 'reduced_spectra'
-        for p in self.xp_dir.glob('*parquet'):
-            for sid in pl.scan_parquet(p).select('sourceid').collect().to_series().to_list():
-                xp_index[sid] = p.name
-        self.lc_index = lc_index
-        self.xp_index = xp_index
+        index_path = self.xp_dir / 'index.pkl'
+        self.xp_index = load_index(index_path)
+        logger.info(f'Found {len(self.lc_index)} sources with xp spectra')
+
         self.lc_cols = ['sourceid']
-        logger.info(f'Found {len(lc_index)} sources')
         for band in bands:
             for col in ['obstimes', 'val', 'valerr']:
                 self.lc_cols.append(f'{band}_{col}')
