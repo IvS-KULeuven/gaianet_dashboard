@@ -137,4 +137,4 @@ if __name__.startswith("bokeh"):
     plotter = DataLoader(data_dir)
     emb = Embedding(latent_dir)
     dashboard = build_panel(plotter, emb, n_cols=3, n_rows=4)
-    dashboard.servable()
+    dashboard.servable(title='GaiaNet embedding explorer')

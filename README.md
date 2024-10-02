@@ -1,5 +1,7 @@
 # GaiaNet dashboard
 
+## Installing and running the dashboard
+
 Clone or download the contents of this repository.
 
 ```
@@ -30,5 +32,13 @@ dvc pull
 (After activating the environment) Launch the dashboard in a browser tab
 
 ```
-panel serve src/launch_panel.py --show --args data/DR3_40obs_20mag_with_spectra/ data/latent_space/2
+panel serve src/launch_panel.py --show --args data/DR3_40obs_20mag_with_spectra/ data/latent_space/
 ```
+
+## Using the dashboard
+
+- The scatter on the left shows the embedding. Each dot is as source. You can use the tools to the right of this plot to move and zoom in/out. Colored dots correspond to sources from the CU7 training set.
+- Upon using the box selection tool in the embedding plot, the light curves, spectra and sky positions of 12 sources (randomly selected) from the selected region will be shown in the right part of the dashboard. Navigate through the data products using the tabs on the top. The source ids will also appear in the text box in the bottom left from where they can be easily copied.
+- The light curve tab can switch between raw light curves and folded light curves by ticking the "Fold" checkbox at the top of the tabs.
+- Pressing the green button at the top of the tabs will show a different set of 12 sources from the selected region.
+
