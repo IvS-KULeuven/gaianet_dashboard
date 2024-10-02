@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 import numpy as np
 import polars as pl
 import pandas as pd
@@ -9,12 +10,15 @@ from astropy.timeseries import LombScargle
 from preprocess import pack_light_curve, pack_spectra
 from silencer import suppress_print
 
+logger = logging.getLogger(__name__)
+
 
 class DataLoader():
 
     def __init__(self, dataset_dir: Path, bands: list[str] = ['g', 'bp-rp']):
         lc_index = {}
         self.lc_dir = dataset_dir / 'light_curves'
+        logger.info('Building parquet indexes')
         for p in self.lc_dir.glob('*parquet'):
             for sid in pl.scan_parquet(p).select('sourceid').collect().to_series().to_list():
                 lc_index[sid] = p.name
@@ -26,6 +30,7 @@ class DataLoader():
         self.lc_index = lc_index
         self.xp_index = xp_index
         self.lc_cols = ['sourceid']
+        logger.info(f'Found {len(lc_index)} sources')
         for band in bands:
             for col in ['obstimes', 'val', 'valerr']:
                 self.lc_cols.append(f'{band}_{col}')

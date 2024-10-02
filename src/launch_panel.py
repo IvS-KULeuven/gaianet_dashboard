@@ -2,6 +2,7 @@ from pathlib import Path
 import argparse
 from functools import partial
 from typing import Callable
+import logging
 import holoviews as hv
 from holoviews import streams
 import holoviews.operation.datashader as hd
@@ -12,6 +13,8 @@ from cartopy import crs
 
 from data_loader import DataLoader
 from embedding import Embedding
+
+logger = logging.getLogger(__name__)
 
 colors = [
     'blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink',
@@ -127,7 +130,18 @@ def build_panel(plotter: DataLoader,
                   pn.Column(pn.Row(fold_check, resample_button), tabs))
 
 
+FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+
+
+@pn.cache
+def reconfig_basic_config(format_=FORMAT, level=logging.INFO):
+    """(Re-)configure logging"""
+    logging.basicConfig(format=format_, level=level, force=True)
+    logging.info("Logging.basicConfig completed successfully")
+
+
 if __name__.startswith("bokeh"):
+    reconfig_basic_config()
     parser = argparse.ArgumentParser(description='Panel')
     parser.add_argument('data_dir', type=str)
     parser.add_argument('latent_dir', type=str)
