@@ -6,7 +6,7 @@ import polars as pl
 import pandas as pd
 import holoviews as hv
 from gaiaxpy import convert
-from astropy.timeseries import LombScargle
+from astropy.timeseries import LombScargle, LombScargleMultiband
 
 from preprocess import pack_light_curve, pack_spectra
 from silencer import suppress_print
@@ -28,6 +28,28 @@ def load_index(path_to_index: Path) -> dict[str, int]:
         with open(path_to_index, 'wb') as f:
             pickle.dump(index, f)
     return index
+
+
+def estimate_dominant_frequency(lc,
+                                multiband: bool = False,
+                                fres: float = 1e-4):
+    freq = np.arange(1e-3, 25.0, fres)
+    if not multiband:
+        time, mag, err = lc['g']
+        ls = LombScargle(time, mag, err)
+        power_args = {'method': 'fast'}
+    else:
+        time = np.concatenate([lc['g'][0], lc['bp-rp'][0]])
+        mag = np.concatenate([lc['g'][1], lc['bp-rp'][1]])
+        err = np.concatenate([lc['g'][2], lc['bp-rp'][2]])
+        bands = np.array(['g']*len(lc['g'][0]) + ['bp-rp']*len(lc['bp-rp'][0]))
+        ls = LombScargleMultiband(time, mag, bands, err)
+        power_args = {'method': 'fast', 'sb_method': 'fast'}
+    ampl = ls.power(freq, **power_args)
+    best_freq = freq[np.argmax(ampl)]
+    freq = np.arange(best_freq - fres, best_freq + fres, fres*0.1)
+    ampl = ls.power(freq, **power_args)
+    return freq[np.argmax(ampl)]
 
 
 class DataLoader():
@@ -111,20 +133,11 @@ class DataLoader():
                         folded: bool = True,
                         **kwargs):
         if sid is not None:
-            time, mag, err = self.get_lightcurve(sid)['g']
+            lc = self.get_lightcurve(sid)
+            time, mag, err = lc['g']
             title = str(sid)
             if folded:
-                freq = np.arange(1e-3, 15.0, 1e-4)
-                ls = LombScargle(time, mag, err)
-                ampl = ls.power(
-                    freq, assume_regular_frequency=True, method='fast'
-                )
-                best_freq = freq[np.argmax(ampl)]
-                freq = np.arange(best_freq - 1e-4, best_freq + 1e-4, 1e-5)
-                ampl = ls.power(
-                    freq, assume_regular_frequency=True, method='fast'
-                )
-                best_freq = freq[np.argmax(ampl)]
+                best_freq = estimate_dominant_frequency(lc, multiband=False)
                 P = 2.0/best_freq
                 time = np.mod(time, P)/P
                 title = title+f' f={best_freq:0.2f}'

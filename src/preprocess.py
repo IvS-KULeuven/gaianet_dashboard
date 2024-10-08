@@ -23,9 +23,9 @@ def pack_light_curve(df_row: pl.DataFrame,
         valerr = valerr[mask]
         mask = np.ones_like(valerr, dtype=bool)
         if remove_extreme_errors:
-            mask[valerr > valerr.mean() + 5*valerr.std()] = 0
+            mask[valerr > np.median(valerr) + 3*valerr.std()] = 0
         if remove_extreme_fluxes:
-            mask[np.abs(val - val.mean()) > 6*val.std()] = 0
+            mask[np.abs(val - np.median(val)) > 6*val.std()] = 0
         lcb = lcb[:, mask]
         idx = lcb[0].argsort()
         light_curve[band] = lcb[:, idx]
