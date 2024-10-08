@@ -36,8 +36,10 @@ def build_panel(plotter: DataLoader,
     resample_button = pn.widgets.Button(
         name="Reload source ids", button_type="success")
     sids_print = pn.widgets.TextAreaInput(
-        value="", width=250, height=150, disabled=True
+        value="", width=250, height=150, disabled=False
     )
+    sids_submit_button = pn.widgets.Button(
+        name="Search source ids", button_type="success")
     sids_copy_button = pn.widgets.Button(
         name="✂ Copy source ids to clipboard", button_type="success")
     sids_copy_button.js_on_click(
@@ -80,7 +82,7 @@ def build_panel(plotter: DataLoader,
                              n_rows: int = 4,
                              n_cols: int = 4):
         n_plots = n_rows*n_cols
-        sids = embedding.find_sids_in_box(bounds, how_many=n_plots)
+        sids = embedding.find_sids_in_box(bounds)
         sids_print.value = "\n".join([str(s) for s in sids])
         if len(sids) < n_plots:
             sids += [None]*(n_plots-len(sids))
@@ -98,7 +100,8 @@ def build_panel(plotter: DataLoader,
                         n_rows: int = 4,
                         n_cols: int = 4,
                         folded: bool = False):
-        plots = [plot_function(sid, folded=folded) for sid in data]
+        n_plots = n_rows*n_cols
+        plots = [plot_function(sid, folded=folded) for sid in data[:n_plots]]
         return hv.Layout(plots).cols(n_cols).opts(shared_axes=False)
 
     def update_sky_map(data: list[int]):
@@ -108,7 +111,7 @@ def build_panel(plotter: DataLoader,
         else:
             long, lat = [], []
         fg_sky = gv.Points((long, lat), ['Longitude', 'Latitude'])
-        return fg_sky.opts(color='red', size=10, projection=crs.Mollweide())
+        return fg_sky.opts(color='red', size=3, projection=crs.Mollweide())
 
     update_lc = partial(update_data_map,
                         plot_function=plotter.plot_lightcurve,
@@ -126,7 +129,8 @@ def build_panel(plotter: DataLoader,
     )
     return pn.Row(pn.Column(pn.pane.HoloViews(bg_emb * fg_emb * box_plot),
                             sids_print,
-                            sids_copy_button),
+                            sids_copy_button,
+                            sids_submit_button),
                   pn.Column(pn.Row(fold_check, resample_button), tabs))
 
 

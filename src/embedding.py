@@ -60,13 +60,13 @@ class Embedding:
 
     def find_sids_in_box(self,
                          box_bounds: tuple[float, float, float, float],
-                         how_many: int,
+                         subsample: int = 1000,
                          ) -> list[int]:
         sids = self.emb.filter(
             in_bounds_expr(box_bounds, 'embedding_0', 'embedding_1')
         ).select('sourceid').to_series()
-        if len(sids) > how_many:
-            sids = sids.sample(how_many)
+        if len(sids) > subsample:
+            sids = sids.sample(subsample)
         return sids.to_list()
 
     def get_galactic_coordinates(self,
