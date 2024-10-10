@@ -31,15 +31,23 @@ def build_panel(plotter: DataLoader,
     pn.extension()
     hv.extension('bokeh')
     gv.extension('bokeh')
-    fold_check = pn.widgets.Checkbox(name='Fold light curves', value=False)
-    resample_button = pn.widgets.Button(
-        name="Reload source ids", button_type="success")
-
+    n_plots = n_rows*n_cols
+    button_width = 100
     # Sky map
     long, lat = embedding.get_galactic_coordinates()
     sky = gv.Points((long, lat), ['Longitude', 'Latitude'])
     bg_sky = hd.dynspread(hd.datashade(sky)).opts(
         projection=crs.Mollweide(), width=800, height=400)
+
+    def update_sky_map(data: list[int]):
+        data = [x for x in data if x is not None]
+        if len(data) > 0:
+            long, lat = embedding.get_galactic_coordinates(data)
+        else:
+            long, lat = [], []
+        fg_sky = gv.Points((long, lat), ['Longitude', 'Latitude'])
+        return fg_sky.opts(color='red', size=3, projection=crs.Mollweide())
+
     # Embedding plot
     embedding_unlabeled = hv.Points(
         embedding.get_embedding(),
@@ -67,16 +75,31 @@ def build_panel(plotter: DataLoader,
            active_tools=['box_select', 'wheel_zoom'])
 
     # Pipes for passing source ids
-    sids_holder = streams.Pipe(data=[])
-    # sids_plots = streams.Pipe(data=[])
+    sids_pipe = streams.Pipe(data=[])
+    sids_pipe_plots = streams.Pipe(data=[])
+
+    def update_plotted_sids(value=None):
+        sids = embedding.selection
+        if len(sids) > n_plots:
+            sids = sids.sample(n_plots)
+        sids = sids.to_list()
+        if len(sids) < n_plots:
+            sids += [None]*(n_plots-len(sids))
+        sids_pipe_plots.send(sids)
 
     # Source selection via textbox
     sids_input = pn.widgets.TextAreaInput(
-        value="", width=250, height=150, disabled=False,
-        placeholder="Enter your source ids", max_length=500000,
+        value="", width=210, height=230, disabled=False, max_length=500000,
+        placeholder=(
+            "Enter your source ids line by line, "
+            "e.g\n2190530735119392128\n5874749936451323264\n"
+            "...\nor upload them in a plain text file. "
+            "Then press submit to highlight them in the embedding. "
+            "Press resample to change the plotted light curves."
+        ), styles={'font-size': '12px'}
     )
-    sids_submit_button = pn.widgets.Button(
-        name="Search source ids", button_type="success")
+    sids_submit_btn = pn.widgets.Button(
+        name="✅ Submit", width=button_width)
 
     def update_selection_via_textbox(value):
         sids_textbox = sids_input.value
@@ -92,28 +115,36 @@ def build_panel(plotter: DataLoader,
             sids = [int(s) for s in sids_textbox.split('\n')]
         sids = embedding.validate_selection(sids)
         sids_input.value = "\n".join([str(s) for s in sids])
-        sids_holder.send(sids)
+        sids_pipe.send(sids)
+        update_plotted_sids()
     bind_text_sel = pn.bind(update_selection_via_textbox,
-                            value=sids_submit_button)
+                            value=sids_submit_btn)
 
     # Clear source id text box button
-    sids_clear_button = pn.widgets.Button(
-        name="Clear source ids",
+    sids_clear_btn = pn.widgets.Button(
+        name="🗑️ Clear", width=button_width,
     )
 
     def clear_text_box(value):
         sids_input.value = ""
-    bind_text_clear = pn.bind(clear_text_box, value=sids_clear_button)
+    bind_text_clear = pn.bind(clear_text_box, value=sids_clear_btn)
 
     # Copy selection to clipboard
-    sids_copy_button = pn.widgets.Button(
-        name="✂ Copy source ids to clipboard", button_type="success")
-    sids_copy_button.js_on_click(
+    sids_copy_btn = pn.widgets.Button(
+        name="📋 Copy", width=button_width)
+    sids_copy_btn.js_on_click(
         args={"source": sids_input},
         code="navigator.clipboard.writeText(source.value);"
     )
 
     # Download selection as CSV
+    # TODO
+    sids_download_btn = pn.widgets.Button(
+        name="⬇️  Download", width=button_width)
+    # Upload CSV with selection
+    # TODO
+    sids_upload_btn = pn.widgets.Button(
+        name="📤 Upload", width=button_width)
 
     # Source selection via embedding plot
     box_selector = streams.BoundsXY(source=embedding_unlabeled,
@@ -122,37 +153,10 @@ def build_panel(plotter: DataLoader,
     def update_selection_via_plot(bounds: tuple[float, float, float, float]):
         sids = embedding.find_sids_in_box(bounds)
         sids_input.value = "\n".join([str(s) for s in sids])
-        sids_holder.send(sids)
+        sids_pipe.send(sids)
+        update_plotted_sids()
     bind_box_sel = pn.bind(update_selection_via_plot,
                            bounds=box_selector.param.bounds)
-
-    def update_selection(bounds: tuple[float, float, float, float],
-                         value: bool = False,
-                         n_rows: int = 4,
-                         n_cols: int = 4):
-        n_plots = n_rows*n_cols
-        print(value)
-        if not value:  # source ids from box-selection
-            sids = embedding.find_sids_in_box(bounds)
-            sids_input.value = "\n".join([str(s) for s in sids])
-        else:  # source ids from text-box
-            sids_textbox: str = sids_print.value
-            if sids_textbox[-1] == '\n':
-                sids_textbox = sids_textbox[:-1]
-            if '\n' not in set(sids_textbox):
-                sids = [int(sids_textbox)]
-            else:
-                sids = [int(s) for s in sids_textbox.split('\n')]
-            sids = embedding.validate_sids(sids)
-            sids_input.value = "\n".join([str(s) for s in sids])
-            # bounds = (-2., -2., 2., 2.)
-        if len(sids) < n_plots:
-            sids += [None]*(n_plots-len(sids))
-        # Sending source ids to the pipe triggers
-        # update on light curve, spectra and sky dynamic maps
-        sids_holder.send(sids)
-        # return hv.Bounds(bounds)
-        return update_embedding(sids)
 
     def update_embedding(data: list[int]):
         coordinates = embedding.get_embedding_for_selection(data)
@@ -160,57 +164,57 @@ def build_panel(plotter: DataLoader,
             coordinates, kdims=['x', 'y']
         ).opts(marker='star', size=5, alpha=0.25)
 
-    box_plot = hv.DynamicMap(
-        partial(update_selection, n_rows=n_rows, n_cols=n_cols),
-        streams=[box_selector,
-                 resample_button.param.value,
-                 sids_submit_button.param.value])
+    # Update light curves and spectra
+    resample_btn = pn.widgets.Button(
+        name="🔄 Resample", width=button_width)
+    bind_reload = pn.bind(update_plotted_sids, resample_btn.param.value)
+
+    # Light curve and spectra plots
+    fold_check = pn.widgets.Checkbox(name='Fold light curves', value=False)
 
     def update_data_map(data: list[int],
                         plot_function: Callable,
-                        n_rows: int = 4,
-                        n_cols: int = 4,
                         folded: bool = False):
         n_plots = n_rows*n_cols
         plots = [plot_function(sid, folded=folded) for sid in data[:n_plots]]
         return hv.Layout(plots).cols(n_cols).opts(shared_axes=False)
 
-    def update_sky_map(data: list[int]):
-        data = [x for x in data if x is not None]
-        if len(data) > 0:
-            long, lat = embedding.get_galactic_coordinates(data)
-        else:
-            long, lat = [], []
-        fg_sky = gv.Points((long, lat), ['Longitude', 'Latitude'])
-        return fg_sky.opts(color='red', size=3, projection=crs.Mollweide())
-
     update_lc = partial(update_data_map,
-                        plot_function=plotter.plot_lightcurve,
-                        n_cols=n_cols, n_rows=n_rows)
+                        plot_function=plotter.plot_lightcurve)
     update_xp = partial(update_data_map,
-                        plot_function=plotter.plot_spectra,
-                        n_cols=n_cols, n_rows=n_rows)
+                        plot_function=plotter.plot_spectra)
     # stats_dmap = hv.DynamicMap(update_stats, streams=[box])
-    lc_streams = {'data': sids_holder, 'folded': fold_check.param.value}
+    lc_streams = {'data': sids_pipe_plots, 'folded': fold_check.param.value}
+
+    # Dashboard
     tabs = pn.Tabs(
-        #('Light curves', hv.DynamicMap(update_lc, streams=lc_streams)),
-        #('Sampled spectra', hv.DynamicMap(update_xp, streams=[sids_holder])),
+        ('Light curves', hv.DynamicMap(update_lc, streams=lc_streams)),
+        ('Sampled spectra', hv.DynamicMap(update_xp, streams=[sids_pipe_plots])),
         ('Sky map', hv.Overlay([
             bg_sky,
-            hv.DynamicMap(update_sky_map, streams=[sids_holder])
+            hv.DynamicMap(update_sky_map, streams=[sids_pipe])
         ]).collate()),
         dynamic=True
     )
-    sel_emb = hv.DynamicMap(update_embedding, streams=[sids_holder])
+    sel_emb = hv.DynamicMap(update_embedding, streams=[sids_pipe])
     return pn.Row(
         pn.Column(
-            hv.Overlay([bg_emb, fg_emb, sel_emb]),
-            sids_input,
-            sids_copy_button,
-            pn.Row(sids_clear_button, sids_submit_button)
+            hv.Overlay([bg_emb, fg_emb, sel_emb]).collate(),
+            pn.Row(
+                sids_input,
+                pn.Column(
+                    sids_upload_btn,
+                    sids_copy_btn,
+                    sids_submit_btn,
+                    resample_btn,
+                    sids_download_btn,
+                    sids_clear_btn,
+                    margin=0,
+                ),
+            ),
         ),
-        pn.Column(pn.Row(fold_check, resample_button), tabs),
-        pn.Column(bind_box_sel, bind_text_sel, bind_text_clear)
+        pn.Column(pn.Row(fold_check), tabs),
+        pn.Column(bind_box_sel, bind_text_sel, bind_text_clear, bind_reload),
     )
 
 
@@ -235,4 +239,4 @@ if __name__.startswith("bokeh"):
     plotter = DataLoader(data_dir)
     emb = Embedding(latent_dir)
     dashboard = build_panel(plotter, emb, n_cols=3, n_rows=4)
-    dashboard.servable(title='GaiaNet embedding explorer')
+    dashboard.servable(title='GaiaNet Embedding Explorer')
