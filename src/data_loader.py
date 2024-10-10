@@ -56,12 +56,10 @@ class DataLoader():
 
     def __init__(self, dataset_dir: Path, bands: list[str] = ['g', 'bp-rp']):
         self.lc_dir = dataset_dir / 'light_curves'
-        index_path = self.lc_dir / 'index.pkl'
-        self.lc_index = load_index(index_path)
+        self.lc_index = load_index(self.lc_dir / 'index.pkl')
         logger.info(f'Found {len(self.lc_index)} sources with light curves')
         self.xp_dir = dataset_dir / 'reduced_spectra'
-        index_path = self.xp_dir / 'index.pkl'
-        self.xp_index = load_index(index_path)
+        self.xp_index = load_index(self.xp_dir / 'index.pkl')
         logger.info(f'Found {len(self.lc_index)} sources with xp spectra')
 
         self.lc_cols = ['sourceid']

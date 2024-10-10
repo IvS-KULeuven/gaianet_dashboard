@@ -1,8 +1,11 @@
 from pathlib import Path
 from typing import Any
+import logging
 import numpy as np
 import polars as pl
 from preprocess import preprocess_coordinates
+
+logger = logging.getLogger(__name__)
 
 
 def in_bounds_expr(bounds: tuple[float, float, float, float],
@@ -41,8 +44,9 @@ class Embedding:
         ).rename({'class': 'subclass'})
         df_emb = df_emb.join(df_source, on='sourceid', how='left').collect()
         self.emb = df_emb
+        self.find_sids_in_box(box_bounds=(-1, -1, 1, 1))
 
-    def get_embedding(self) -> dict[str, np.ndarray]:
+    def get_embedding(self, sids=None) -> dict[str, np.ndarray]:
         sids = self.emb.select(['sourceid']).to_series().to_numpy()
         x, y = self.emb.select(['embedding_0', 'embedding_1']).to_numpy().T
         return {'x': x, 'y': y, 'sourceid': sids}
@@ -58,6 +62,19 @@ class Embedding:
         x, y = labeled_emb.select(['embedding_0', 'embedding_1']).to_numpy().T
         return {'x': x, 'y': y, 'sourceid': sids, 'label': labels}
 
+    def get_embedding_for_selection(self, sids: list[int]):
+        emb = self.emb.filter(pl.col('sourceid').is_in(sids))
+        x, y = emb.select(['embedding_0', 'embedding_1']).to_numpy().T
+        return {'x': x, 'y': y}
+
+    def validate_selection(self, requested_sids: list[int]):
+        emb = self.emb.filter(pl.col('sourceid').is_in(requested_sids))
+        if len(emb) != len(requested_sids):
+            logger.warning(f"Requested {len(requested_sids)} sids but only {len(emb)} are available")
+        sids = emb.select('sourceid').to_series()
+        self.selection = sids
+        return sids.to_list()
+
     def find_sids_in_box(self,
                          box_bounds: tuple[float, float, float, float],
                          subsample: int = 1000,
@@ -67,6 +84,7 @@ class Embedding:
         ).select('sourceid').to_series()
         if len(sids) > subsample:
             sids = sids.sample(subsample)
+        self.selection = sids
         return sids.to_list()
 
     def get_galactic_coordinates(self,
