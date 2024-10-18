@@ -13,18 +13,23 @@ from silencer import suppress_print
 logger = logging.getLogger(__name__)
 
 
+def create_index(path_to_data: Path):
+    index = {}
+    for p in path_to_data.glob('*parquet'):
+        sids = pl.read_parquet(p, columns=['sourceid']).to_series()
+        for sid in sids.to_list():
+            index[sid] = p.name
+    return index
+
+
 def load_index(path_to_index: Path) -> dict[str, int]:
     if path_to_index.exists():
         logger.info('Found parquet index')
         with open(path_to_index, 'rb') as f:
             index = pickle.load(f)
     else:
-        index = {}
         logger.info('Parquet index not found, building it from scratch')
-        for p in path_to_index.parent.glob('*parquet'):
-            sids = pl.read_parquet(p, columns=['sourceid']).to_series()
-            for sid in sids.to_list():
-                index[sid] = p.name
+        index = create_index(path_to_index.parent)
         with open(path_to_index, 'wb') as f:
             pickle.dump(index, f)
     return index
@@ -32,17 +37,15 @@ def load_index(path_to_index: Path) -> dict[str, int]:
 
 class DataLoader():
 
-    def __init__(self, 
+    def __init__(self,
                  dataset_dir: Path,
                  metadata_path: Path,
                  bands: list[str] = ['g', 'bp-rp']):
         self.lc_dir = dataset_dir / 'light_curves'
-        index_path = self.lc_dir / 'index.pkl'
-        self.lc_index = load_index(index_path)
+        self.lc_index = load_index(self.lc_dir / 'index.pkl')
         logger.info(f'Found {len(self.lc_index)} sources with light curves')
         self.xp_dir = dataset_dir / 'reduced_spectra'
-        index_path = self.xp_dir / 'index.pkl'
-        self.xp_index = load_index(index_path)
+        self.xp_index = load_index(self.xp_dir / 'index.pkl')
         logger.info(f'Found {len(self.lc_index)} sources with xp spectra')
         self.features = pl.read_parquet(dataset_dir / 'features' / '*.parquet')
         metadata = pl.read_parquet(metadata_path).rename({'sourceid': 'source_id'})
