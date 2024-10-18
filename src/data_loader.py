@@ -6,7 +6,6 @@ import polars as pl
 import pandas as pd
 import holoviews as hv
 from gaiaxpy import convert
-from astropy.timeseries import LombScargle, LombScargleMultiband
 
 from preprocess import pack_light_curve, pack_spectra
 from silencer import suppress_print
@@ -23,49 +22,80 @@ def load_index(path_to_index: Path) -> dict[str, int]:
         index = {}
         logger.info('Parquet index not found, building it from scratch')
         for p in path_to_index.parent.glob('*parquet'):
-            for sid in pl.scan_parquet(p).select('sourceid').collect().to_series().to_list():
+            sids = pl.read_parquet(p, columns=['sourceid']).to_series()
+            for sid in sids.to_list():
                 index[sid] = p.name
         with open(path_to_index, 'wb') as f:
             pickle.dump(index, f)
     return index
 
 
-def estimate_dominant_frequency(lc,
-                                multiband: bool = False,
-                                fres: float = 1e-4):
-    freq = np.arange(1e-3, 25.0, fres)
-    if not multiband:
-        time, mag, err = lc['g']
-        ls = LombScargle(time, mag, err)
-        power_args = {'method': 'fast'}
-    else:
-        time = np.concatenate([lc['g'][0], lc['bp-rp'][0]])
-        mag = np.concatenate([lc['g'][1], lc['bp-rp'][1]])
-        err = np.concatenate([lc['g'][2], lc['bp-rp'][2]])
-        bands = np.array(['g']*len(lc['g'][0]) + ['bp-rp']*len(lc['bp-rp'][0]))
-        ls = LombScargleMultiband(time, mag, bands, err)
-        power_args = {'method': 'fast', 'sb_method': 'fast'}
-    ampl = ls.power(freq, **power_args)
-    best_freq = freq[np.argmax(ampl)]
-    freq = np.arange(best_freq - fres, best_freq + fres, fres*0.1)
-    ampl = ls.power(freq, **power_args)
-    return freq[np.argmax(ampl)]
-
-
 class DataLoader():
 
-    def __init__(self, dataset_dir: Path, bands: list[str] = ['g', 'bp-rp']):
+    def __init__(self, 
+                 dataset_dir: Path,
+                 metadata_path: Path,
+                 bands: list[str] = ['g', 'bp-rp']):
         self.lc_dir = dataset_dir / 'light_curves'
-        self.lc_index = load_index(self.lc_dir / 'index.pkl')
+        index_path = self.lc_dir / 'index.pkl'
+        self.lc_index = load_index(index_path)
         logger.info(f'Found {len(self.lc_index)} sources with light curves')
         self.xp_dir = dataset_dir / 'reduced_spectra'
-        self.xp_index = load_index(self.xp_dir / 'index.pkl')
+        index_path = self.xp_dir / 'index.pkl'
+        self.xp_index = load_index(index_path)
         logger.info(f'Found {len(self.lc_index)} sources with xp spectra')
-
+        self.features = pl.read_parquet(dataset_dir / 'features' / '*.parquet')
+        metadata = pl.read_parquet(metadata_path).rename({'sourceid': 'source_id'})
+        self.features = self.features.join(metadata, on='source_id', how='left')
+        feature_names = self.features.columns
+        self.available_periods = [c for c in feature_names if 'frequency' in c]
+        self.selected_frequency = 'MHAOV_best_frequency'
         self.lc_cols = ['sourceid']
         for band in bands:
             for col in ['obstimes', 'val', 'valerr']:
                 self.lc_cols.append(f'{band}_{col}')
+
+    def get_features(self, sids: list[int]):
+        if len(sids) == 1:
+            filter_expr = pl.col('source_id').eq(sids[0])
+        else:
+            filter_expr = pl.col('source_id').is_in(sids)
+        return self.features.filter(filter_expr)
+
+    def plot_features(self,
+                      sids: list[int],
+                      width: int = 350,
+                      height: int = 250):
+        selection = self.get_features(sids)
+        plots = []
+
+        def kde_plot(data, label, bw=0.05):
+            return hv.Distribution(
+                data, kdims=label
+            ).opts(width=width, height=height, framewise=True, bandwidth=bw)
+
+        feature = selection.select('magnitude_mean').to_numpy()
+        label = 'G-band mean'
+        plots.append(kde_plot(feature, label))
+        feature = selection.select('magnitude_std').to_numpy()
+        label = 'G-band standard deviation'
+        plots.append(kde_plot(feature, label))
+        feature = selection.select(self.selected_frequency).to_numpy()
+        feature = np.log10(feature)
+        # TODO: ADD COLOR
+        label = 'Log10 dominant frequency'
+        plots.append(kde_plot(feature, label))
+        # Top 5 classes
+        c = selection.select('class').filter(
+            pl.col('class').ne('UNKNOWN')
+        ).group_by('class').count().head(5)
+        plots.append(
+            hv.Bars(
+                c.to_pandas(), kdims=['class'], vdims=['count']
+            ).opts(width=350, height=250)
+        )
+
+        return hv.Layout(plots).cols(2).opts(shared_axes=False)
 
     def get_lightcurve(self,
                        sid: int,
@@ -135,7 +165,10 @@ class DataLoader():
             time, mag, err = lc['g']
             title = str(sid)
             if folded:
-                best_freq = estimate_dominant_frequency(lc, multiband=False)
+                # best_freq = estimate_dominant_frequency(lc, multiband=False)
+                best_freq = self.get_features(
+                    [sid]
+                ).select(self.selected_frequency).item()
                 P = 2.0/best_freq
                 time = np.mod(time, P)/P
                 title = title+f' f={best_freq:0.2f}'
@@ -156,9 +189,9 @@ class DataLoader():
                 vdims=['Magnitude', 'Error']
             ).opts(color='g', lower_head=None, upper_head=None)
             plots.append(bars)
-        return hv.Overlay(plots).opts(shared_axes=True,
-                                      title=title,
-                                      fontsize={'title': 8})
+        return hv.Overlay(
+            plots
+        ).opts(shared_axes=True, title=title, fontsize={'title': 8})
 
     def plot_spectra(self, sid: int,
                      width: int = 250,

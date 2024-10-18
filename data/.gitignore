@@ -1,1 +1,4 @@
-/latent_space
+*
+!.gitignore
+!*.dvc
+

@@ -1,6 +1,0 @@
-outs:
-- md5: a11fe4cfef04933a83a8bd24751e23cb.dir
-  size: 19721619169
-  nfiles: 2124
-  hash: md5
-  path: light_curves
