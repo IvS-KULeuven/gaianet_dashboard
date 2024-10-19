@@ -5,6 +5,7 @@ import numpy as np
 import polars as pl
 import pandas as pd
 import holoviews as hv
+import h5py
 from gaiaxpy import convert
 
 from preprocess import pack_light_curve, pack_spectra
@@ -13,22 +14,23 @@ from silencer import suppress_print
 logger = logging.getLogger(__name__)
 
 
-def create_index(path_to_data: Path) -> dict[int, tuple[int, str]]:
+def create_index(path_to_data: Path) -> dict[str, str]:
     index = {}
-    for p in path_to_data.glob('*parquet'):
-        sids = pl.read_parquet(p, columns=['sourceid']).to_series()
-        for k, sid in enumerate(sids.to_list()):
-            index[sid] = (k, p.name)
+    for p in path_to_data.glob('*.h5'):
+        with h5py.File(p, 'r') as f:
+            sids = list(f.keys())
+        for sid in sids:
+            index[sid] = p.name
     return index
 
 
-def load_index(path_to_index: Path) -> dict[int, tuple[int, str]]:
+def load_index(path_to_index: Path) -> dict[str, str]:
     if path_to_index.exists():
-        logger.info('Found parquet index')
+        logger.info('Found h5 index')
         with open(path_to_index, 'rb') as f:
             index = pickle.load(f)
     else:
-        logger.info('Parquet index not found, building it from scratch')
+        logger.info('h5 index not found, building it from scratch')
         index = create_index(path_to_index.parent)
         with open(path_to_index, 'wb') as f:
             pickle.dump(index, f)
@@ -41,10 +43,10 @@ class DataLoader():
                  dataset_dir: Path,
                  metadata_path: Path,
                  bands: list[str] = ['g']):
-        self.lc_dir = dataset_dir / 'light_curves'
+        self.lc_dir = dataset_dir / 'light_curves_hdf5'
         self.lc_index = load_index(self.lc_dir / 'index.pkl')
         logger.info(f'Found {len(self.lc_index)} sources with light curves')
-        self.xp_dir = dataset_dir / 'reduced_spectra'
+        self.xp_dir = dataset_dir / 'reduced_spectra_hdf5'
         self.xp_index = load_index(self.xp_dir / 'index.pkl')
         logger.info(f'Found {len(self.lc_index)} sources with xp spectra')
         self.features = pl.read_parquet(dataset_dir / 'features' / '*.parquet')
@@ -101,31 +103,25 @@ class DataLoader():
         return hv.Layout(plots).cols(2).opts(shared_axes=False)
 
     def get_lightcurve(self,
-                       sid: int,
+                       sid: str,
                        pack_kwargs: dict = {}) -> dict[str, np.ndarray]:
         if sid not in self.lc_index:
             raise ValueError(f"No light curves found for source {sid}")
-        _, file = self.lc_index[sid]
-        lc_row = pl.scan_parquet(
-            self.lc_dir / file
-        ).select(self.lc_cols).filter(
-            pl.col('sourceid').eq(sid)
-        ).collect()
-        return pack_light_curve(lc_row, **pack_kwargs)
+        file = self.lc_index[sid]
+        with h5py.File(self.lc_dir / file, 'r') as f:
+            lc = f[sid][:]
+        return {'g': lc}
 
-    def get_continuous_spectra(self, sid: int) -> dict[str, np.ndarray]:
+    def get_continuous_spectra(self, sid: str) -> dict[str, np.ndarray]:
         if sid not in self.xp_index:
             raise ValueError(f"No Xp spectra found for source {sid}")
-        _, file = self.xp_index[sid]
-        xp_row = pl.scan_parquet(
-            self.xp_dir / file
-        ).filter(
-            pl.col('sourceid').eq(sid)
-        ).collect()
-        return pack_spectra(xp_row)
+        file = self.xp_index[sid]
+        with h5py.File(self.xp_dir / file, 'r') as f:
+            xp = f[sid][:]
+        return {'bp': xp[0], 'rp': xp[1]}
 
     def get_sampled_spectra(self,
-                            sid: int,
+                            sid: str,
                             pseudo_wavelenghts: np.ndarray | None = None,
                             ) -> dict[str, np.ndarray]:
         """
@@ -163,7 +159,7 @@ class DataLoader():
         return {'bp': bp_spectra, 'rp': rp_spectra}
 
     def plot_lightcurve(self,
-                        sid: int,
+                        sid: str,
                         width: int = 250,
                         height: int = 160,
                         plot_errors: bool = False,
@@ -176,7 +172,7 @@ class DataLoader():
             if folded:
                 # best_freq = estimate_dominant_frequency(lc, multiband=False)
                 best_freq = self.get_features(
-                    [sid]
+                    [int(sid)]
                 ).select(self.selected_frequency).item()
                 P = 2.0/best_freq
                 time = np.mod(time, P)/P

@@ -1,0 +1,6 @@
+outs:
+- md5: 2f683ddeb94ecaf11404f04e0d57d374.dir
+  size: 5624668440
+  nfiles: 2126
+  hash: md5
+  path: reduced_spectra_hdf5

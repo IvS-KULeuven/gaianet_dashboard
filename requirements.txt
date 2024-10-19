@@ -11,3 +11,4 @@ dvc_azure
 jupyter
 geoviews
 cartopy
+h5py

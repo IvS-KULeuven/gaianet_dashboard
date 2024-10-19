@@ -1,6 +1,0 @@
-outs:
-- md5: b925bf9d7c07369995d154d817f3941c.dir
-  size: 5576067389
-  nfiles: 2124
-  hash: md5
-  path: reduced_spectra

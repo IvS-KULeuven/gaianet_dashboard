@@ -91,14 +91,14 @@ def build_panel(plotter: DataLoader,
     def update_plotted_sids(value=None,
                             sids: np.ndarray | None = None):
         if sids is None:
-            sids = sids_pipe.data
+            sids = np.array(sids_pipe.data)
         if len(sids) > n_plots:
             perm = np.random.permutation(len(sids))
             sids = sids[perm][:n_plots]
-        sids = list(sids)
-        if len(sids) < n_plots:
-            sids += [None]*(n_plots-len(sids))
-        sids_pipe_plots.send(sids)
+        sids_plots = [str(s) for s in sids]
+        if len(sids_plots) < n_plots:
+            sids_plots += [None]*(n_plots-len(sids))
+        sids_pipe_plots.send(sids_plots)
 
     def update_selection_via_textbox(value):
         sids_textbox = sids_input.value
@@ -179,7 +179,7 @@ def build_panel(plotter: DataLoader,
     # Light curve and spectra plots
     fold_check = pn.widgets.Checkbox(name='Fold light curves', value=False)
 
-    def update_data_map(data: list[int],
+    def update_data_map(data: list[str],
                         plot_function: Callable,
                         folded: bool = False):
         n_plots = n_rows*n_cols

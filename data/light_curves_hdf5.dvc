@@ -1,0 +1,6 @@
+outs:
+- md5: d6ec51edbd14715aaeb8b5c9dc04ae04.dir
+  size: 4886312176
+  nfiles: 2125
+  hash: md5
+  path: light_curves_hdf5
