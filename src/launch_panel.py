@@ -1,3 +1,4 @@
+import io
 from pathlib import Path
 import argparse
 from functools import partial
@@ -78,7 +79,7 @@ def build_panel(plotter: DataLoader,
     sids_input = pn.widgets.TextAreaInput(
         value="", width=300, height=200, disabled=False, max_length=500000,
         placeholder=(
-            "Enter your source ids line by line, "
+            "Enter one Gaia DR3 source id per line, "
             "e.g\n2190530735119392128\n5874749936451323264\n"
             "...\nor upload them in a plain text file. "
             "Then press submit to highlight them in the embedding. "
@@ -137,9 +138,21 @@ def build_panel(plotter: DataLoader,
     )
 
     # Download selection as CSV
-    # TODO
-    sids_download_btn = pn.widgets.Button(
-        name="⬇️  Download", width=button_width)
+    def download_sourceids():
+        sids = sids_input.value
+        if sids is not None:
+            return io.StringIO(str(sids))
+    sids_download_btn = pn.widgets.FileDownload(
+        callback=download_sourceids, filename='sids.txt',
+        label="⬇️  Download", width=button_width)
+
+    def disable_download(event):
+        sids = sids_input.value
+        if sids == '':
+            sids_download_btn.disabled = True
+        else:
+            sids_download_btn.disabled = False
+    pn.bind(disable_download, sids_input.param.value, watch=True)
     # Upload CSV with selection
     # TODO
     sids_upload_btn = pn.widgets.Button(
