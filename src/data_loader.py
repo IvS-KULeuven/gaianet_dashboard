@@ -13,16 +13,16 @@ from silencer import suppress_print
 logger = logging.getLogger(__name__)
 
 
-def create_index(path_to_data: Path):
+def create_index(path_to_data: Path) -> dict[int, tuple[int, str]]:
     index = {}
     for p in path_to_data.glob('*parquet'):
         sids = pl.read_parquet(p, columns=['sourceid']).to_series()
-        for sid in sids.to_list():
-            index[sid] = p.name
+        for k, sid in enumerate(sids.to_list()):
+            index[sid] = (k, p.name)
     return index
 
 
-def load_index(path_to_index: Path) -> dict[str, int]:
+def load_index(path_to_index: Path) -> dict[int, tuple[int, str]]:
     if path_to_index.exists():
         logger.info('Found parquet index')
         with open(path_to_index, 'rb') as f:
@@ -40,7 +40,7 @@ class DataLoader():
     def __init__(self,
                  dataset_dir: Path,
                  metadata_path: Path,
-                 bands: list[str] = ['g', 'bp-rp']):
+                 bands: list[str] = ['g']):
         self.lc_dir = dataset_dir / 'light_curves'
         self.lc_index = load_index(self.lc_dir / 'index.pkl')
         logger.info(f'Found {len(self.lc_index)} sources with light curves')
@@ -105,17 +105,19 @@ class DataLoader():
                        pack_kwargs: dict = {}) -> dict[str, np.ndarray]:
         if sid not in self.lc_index:
             raise ValueError(f"No light curves found for source {sid}")
+        row, file = self.lc_index[sid]
         lc_row = pl.scan_parquet(
-            self.lc_dir / self.lc_index[sid]
-        ).select(self.lc_cols).filter(pl.col('sourceid').eq(sid)).collect()
+            self.lc_dir / file
+        ).select(self.lc_cols).slice(row, 1).collect()
         return pack_light_curve(lc_row, **pack_kwargs)
 
     def get_continuous_spectra(self, sid: int) -> dict[str, np.ndarray]:
         if sid not in self.xp_index:
             raise ValueError(f"No Xp spectra found for source {sid}")
+        row, file = self.xp_index[sid]
         xp_row = pl.scan_parquet(
-            self.xp_dir / self.xp_index[sid]
-        ).filter(pl.col('sourceid').eq(sid)).collect()
+            self.xp_dir / file
+        ).slice(row, 1).collect()
         return pack_spectra(xp_row)
 
     def get_sampled_spectra(self,
