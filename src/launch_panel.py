@@ -46,10 +46,11 @@ def build_panel(plotter: DataLoader,
 
     # Embedding plot
     def plot_embedding(x_dim, y_dim, class_name=None, sids=None, alpha=1.0):
+        sel_emb = embedding.get_2d_embedding(
+            sids=sids, class_name=class_name, x_dim=x_dim, y_dim=y_dim)
         return hv.Points(
-            embedding.get_2d_embedding(
-                sids=sids, class_name=class_name, x_dim=x_dim, y_dim=y_dim),
-            kdims=['x', 'y'], vdims=['sourceid']
+            sel_emb,
+            kdims=['x', 'y'],
         ).opts(framewise=True, alpha=alpha)
 
     emb_columns = emb.emb_columns

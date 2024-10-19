@@ -105,19 +105,23 @@ class DataLoader():
                        pack_kwargs: dict = {}) -> dict[str, np.ndarray]:
         if sid not in self.lc_index:
             raise ValueError(f"No light curves found for source {sid}")
-        row, file = self.lc_index[sid]
+        _, file = self.lc_index[sid]
         lc_row = pl.scan_parquet(
             self.lc_dir / file
-        ).select(self.lc_cols).slice(row, 1).collect()
+        ).select(self.lc_cols).filter(
+            pl.col('sourceid').eq(sid)
+        ).collect()
         return pack_light_curve(lc_row, **pack_kwargs)
 
     def get_continuous_spectra(self, sid: int) -> dict[str, np.ndarray]:
         if sid not in self.xp_index:
             raise ValueError(f"No Xp spectra found for source {sid}")
-        row, file = self.xp_index[sid]
+        _, file = self.xp_index[sid]
         xp_row = pl.scan_parquet(
             self.xp_dir / file
-        ).slice(row, 1).collect()
+        ).filter(
+            pl.col('sourceid').eq(sid)
+        ).collect()
         return pack_spectra(xp_row)
 
     def get_sampled_spectra(self,
