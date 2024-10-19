@@ -16,13 +16,6 @@ def in_bounds_expr(bounds: tuple[float, float, float, float],
     return x_bounds & y_bounds
 
 
-#short_names = {-1: 'UNKNOWN',
-#               0: 'CEP', 1: 'ACV', 2: 'RR', 3: 'BCEP',
-#               4: 'BE', 5: 'SOLAR_LIKE', 6: 'YSO',
-#               7: 'CV', 8: 'DSCT|GDOR', 9: 'ECL', 10: 'WD',
-#               11: 'ELL', 12: 'LPV', 13: 'QSO', 14: 'RS',
-#               15: 'SPB', 16: 'SYST|ZAND'}
-
 short_names = {
     'ACEP|BLHER|CEP|CW|DCEP|RV|T2CEP': 'CEP',
     'ACV|CP|MCP|ROAM|ROAP|SXARI': 'ACV',
@@ -45,7 +38,7 @@ short_names = {
     'RS': 'RS',
     'SPB': 'SPB',
     'SYST|ZAND': 'SYST|ZAND',
-    'V1093HER|V361HYA': 'V',
+    'V1093HER|V361HYA': 'V1093HER|V361HYA',
 }
 
 
@@ -79,68 +72,46 @@ class Embedding:
             self.class_column
         ).unique().sort(self.class_column).to_series().to_list()
         self.emb = df_emb
-        self.set_plot_columns(self.emb_columns[0], self.emb_columns[1])
         self.find_sids_in_box(box_bounds=(-1, -1, 1, 1))
 
-    def set_plot_columns(self, x_col: str, y_col: str):
-        if x_col not in self.emb_columns:
-            raise ValueError("Invalid column")
-        if y_col not in self.emb_columns:
-            raise ValueError("Invalid column")
-        if x_col == y_col:
-            print("Cannot plot when xaxis is the same as yaxis")
-            return
-        self.emb_x = x_col
-        self.emb_y = y_col
-
-    def get_embedding(self, sids=None) -> dict[str, np.ndarray]:
-        sids = self.emb.select(['sourceid']).to_series().to_numpy()
-        x, y = self.emb.select([self.emb_x, self.emb_y]).to_numpy().T
+    def get_2d_embedding(self,
+                         sids: np.ndarray | None = None,
+                         class_name: str | None = None,
+                         x_dim: str = 'embedding_0',
+                         y_dim: str = 'embedding_1'
+                         ) -> dict[str, np.ndarray]:
+        emb = self.emb
+        if sids is not None:
+            emb = emb.filter(pl.col('sourceid').is_in(sids))
+        else:
+            sids = emb.select(['sourceid']).to_series().to_numpy()
+        if class_name is not None:
+            emb = emb.filter(pl.col(self.class_column).eq(class_name))
+        x, y = emb.select([x_dim, y_dim]).to_numpy().T
         return {'x': x, 'y': y, 'sourceid': sids}
 
-    def get_class_embedding(self, class_name: str) -> dict[str, np.ndarray]:
-        sel = self.emb.filter(
-            pl.col(self.class_column).eq(class_name)
-        )
-        sids = sel.select(['sourceid']).to_series().to_numpy()
-        x, y = sel.select([self.emb_x, self.emb_y]).to_numpy().T
-        return {'x': x, 'y': y, 'sourceid': sids}
-
-    def get_labeled_embedding(self) -> dict[str, np.ndarray]:
-        labeled_emb = self.emb.filter(
-            pl.col('label').ne(-1)
-        ).select(
-            ['sourceid', self.emb_x, self.emb_y, self.class_column]
-        ).sort(self.class_column)
-        sids = labeled_emb.select('sourceid').to_series().to_numpy()
-        labels = labeled_emb.select(self.class_column).to_series().to_numpy()
-        x, y = labeled_emb.select([self.emb_x, self.emb_y]).to_numpy().T
-        return {'x': x, 'y': y, 'sourceid': sids, 'label': labels}
-
-    def get_embedding_for_selection(self, sids: list[int]):
-        emb = self.emb.filter(pl.col('sourceid').is_in(sids))
-        x, y = emb.select([self.emb_x, self.emb_y]).to_numpy().T
-        return {'x': x, 'y': y}
-
-    def validate_selection(self, requested_sids: list[int]):
+    def validate_selection(self,
+                           requested_sids: list[int]
+                           ) -> np.ndarray:
         emb = self.emb.filter(pl.col('sourceid').is_in(requested_sids))
         if len(emb) != len(requested_sids):
-            logger.warning(f"Requested {len(requested_sids)} sids but only {len(emb)} are available")
+            logger.warning((f"Requested {len(requested_sids)} sids "
+                            f"but only {len(emb)} are available"))
         sids = emb.select('sourceid').to_series()
-        self.selection = sids
-        return sids.to_list()
+        return sids.to_numpy()
 
     def find_sids_in_box(self,
                          box_bounds: tuple[float, float, float, float],
                          subsample: int = 10000,
-                         ) -> list[int]:
+                         x_dim: str = 'embedding_0',
+                         y_dim: str = 'embedding_1',
+                         ) -> np.ndarray:
         sids = self.emb.filter(
-            in_bounds_expr(box_bounds, self.emb_x, self.emb_y)
+            in_bounds_expr(box_bounds, x_dim, y_dim)
         ).select('sourceid').to_series()
         if len(sids) > subsample:
             sids = sids.sample(subsample)
-        self.selection = sids
-        return sids.to_list()
+        return sids.to_numpy()
 
     def get_galactic_coordinates(self,
                                  sids: list[int] | None = None,

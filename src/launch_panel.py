@@ -3,11 +3,11 @@ import argparse
 from functools import partial
 from typing import Callable
 import logging
+import numpy as np
 import holoviews as hv
 from holoviews import streams
 import holoviews.operation.datashader as hd
 import panel as pn
-import datashader
 import geoviews as gv
 from cartopy import crs
 
@@ -37,9 +37,6 @@ def build_panel(plotter: DataLoader,
                 embedding: Embedding,
                 n_rows: int = 3,
                 n_cols: int = 3):
-    pn.extension()
-    hv.extension('bokeh')
-    gv.extension('bokeh')
     n_plots = n_rows*n_cols
     button_width = 100
 
@@ -48,49 +45,29 @@ def build_panel(plotter: DataLoader,
     sids_pipe_plots = streams.Pipe(data=[])
 
     # Embedding plot
-    def plot_embedding(x_col, y_col):
-        embedding.set_plot_columns(x_col, y_col)
+    def plot_embedding(x_dim, y_dim, class_name=None, sids=None, alpha=1.0):
         return hv.Points(
-            embedding.get_embedding(),
+            embedding.get_2d_embedding(
+                sids=sids, class_name=class_name, x_dim=x_dim, y_dim=y_dim),
             kdims=['x', 'y'], vdims=['sourceid']
-        ).opts(framewise=True)
-        return embedding_unlabeled
-        embedding_labeled = hv.Points(
-            embedding.get_labeled_embedding(),
-            kdims=['x', 'y'], vdims=['label', 'sourceid']
-        )
-        aggregator = datashader.by('label', datashader.count())
-        fg_emb = hd.dynspread(
-            hd.datashade(embedding_labeled,
-                         aggregator=aggregator,
-                         color_key=colors),
-            max_px=3, threshold=0.75, shape='square',
-        ).opts(legend_position='right', fontsize={'legend': 8})
+        ).opts(framewise=True, alpha=alpha)
 
-        bg_emb = hd.dynspread(
-            hd.datashade(embedding_unlabeled,
-                         cmap="gray",
-                         cnorm="eq_hist"),
-            max_px=3, threshold=0.75, shape='circle',
-        ).opts(width=650, height=500,
-               tools=['box_select'],
-               active_tools=['box_select', 'wheel_zoom'])
-        return bg_emb
-    x_sel = pn.widgets.Select(options=emb.emb_columns, value=emb.emb_x, width=150)
-    y_sel = pn.widgets.Select(options=emb.emb_columns, value=emb.emb_y, width=150)
-    emb_stream = {'x_col': x_sel.param.value, 'y_col': y_sel.param.value}
+    emb_columns = emb.emb_columns
+    emb_select = partial(pn.widgets.Select, width=150, options=emb_columns)
+    x_sel = emb_select(value=emb_columns[0])
+    y_sel = emb_select(value=emb_columns[1])
+    emb_stream = {'x_dim': x_sel.param.value, 'y_dim': y_sel.param.value}
     bg_emb = hv.DynamicMap(plot_embedding, streams=emb_stream).opts(framewise=True)
 
-    class_sel = pn.widgets.Select(options=['none'] + emb.available_classes,
-                                  value='none')
+    class_sel = pn.widgets.Select(
+        options=['none'] + emb.available_classes, value='none')
 
-    def plot_class(x_col, y_col, name='none'):
+    def plot_class(x_dim, y_dim, name='none'):
         if name == 'none':
             return hv.Points([])
-        return hv.Points(
-            embedding.get_class_embedding(class_name=name),
-            kdims=['x', 'y'], vdims=['sourceid']
-        ).opts(alpha=0.5, framewise=True)
+        return plot_embedding(
+            class_name=name, x_dim=x_dim, y_dim=y_dim, alpha=0.5
+        )
     fg_emb = hv.DynamicMap(
         plot_class,
         streams=emb_stream | {'name': class_sel.param.value}
@@ -110,11 +87,14 @@ def build_panel(plotter: DataLoader,
     sids_submit_btn = pn.widgets.Button(
         name="✅ Submit", width=button_width)
 
-    def update_plotted_sids(value=None):
-        sids = embedding.selection
+    def update_plotted_sids(value=None,
+                            sids: np.ndarray | None = None):
+        if sids is None:
+            sids = sids_pipe.data
         if len(sids) > n_plots:
-            sids = sids.sample(n_plots)
-        sids = sids.to_list()
+            perm = np.random.permutation(len(sids))
+            sids = sids[perm][:n_plots]
+        sids = list(sids)
         if len(sids) < n_plots:
             sids += [None]*(n_plots-len(sids))
         sids_pipe_plots.send(sids)
@@ -134,7 +114,7 @@ def build_panel(plotter: DataLoader,
         sids = embedding.validate_selection(sids)
         sids_input.value = "\n".join([str(s) for s in sids])
         sids_pipe.send(sids)
-        update_plotted_sids()
+        update_plotted_sids(sids=sids)
     bind_text_sel = pn.bind(update_selection_via_textbox,
                             value=sids_submit_btn)
 
@@ -169,16 +149,20 @@ def build_panel(plotter: DataLoader,
                                     bounds=(-1., -1., 1., 1.))
 
     def update_selection_via_plot(bounds: tuple[float, float, float, float]):
-        sids = embedding.find_sids_in_box(bounds)
+        sids = embedding.find_sids_in_box(
+            box_bounds=bounds,
+            x_dim=x_sel.value,
+            y_dim=y_sel.value,
+        )
         sids_input.value = "\n".join([str(s) for s in sids])
         sids_pipe.send(sids)
-        update_plotted_sids()
+        update_plotted_sids(sids=sids)
     bind_box_sel = pn.bind(update_selection_via_plot,
                            bounds=box_selector.param.bounds)
 
-    # THIS ALSO HAS TO BE UPDATE BY SELECTORS
-    def update_embedding_selection(data: list[int], x_col: str, y_col: str):
-        coordinates = embedding.get_embedding_for_selection(data)
+    def update_embedding_selection(data: list[int], x_dim: str, y_dim: str):
+        coordinates = embedding.get_2d_embedding(
+            sids=np.array(data), x_dim=x_dim, y_dim=y_dim)
         return hv.Points(
             coordinates, kdims=['x', 'y']
         ).opts(marker='star', size=5, alpha=0.25)
@@ -246,7 +230,7 @@ def build_panel(plotter: DataLoader,
     bg_emb = datashade_embedding(bg_emb).opts(framewise=True)
     return pn.Row(
         pn.Column(
-            hv.Overlay([bg_emb, fg_emb, sel_emb]).opts(framewise=True),
+            hv.Overlay([bg_emb, fg_emb, sel_emb]).opts(framewise=True).collate(),
             pn.Row(x_sel, y_sel, class_sel),
             pn.Row(
                 sids_input,
@@ -263,7 +247,8 @@ def build_panel(plotter: DataLoader,
             ),
         ),
         pn.Column(pn.Row(fold_check), tabs),
-        pn.Column(bind_box_sel, bind_text_sel, bind_text_clear, bind_reload),
+        pn.Column(pn.param.ParamFunction(bind_box_sel, loading_indicator=True),
+                  bind_text_sel, bind_text_clear, bind_reload),
     )
 
 
@@ -287,7 +272,18 @@ if __name__.startswith("bokeh"):
     data_dir = Path(args.data_dir)
     metadata_path = Path(args.metadata_path)
     latent_dir = Path(args.latent_dir)
-    emb = Embedding(latent_dir, metadata_path, class_column='class')
-    plotter = DataLoader(data_dir, metadata_path)
+    if 'plotter' in pn.state.cache:
+        plotter = pn.state.cache['plotter']
+    else:
+        pn.state.cache['plotter'] = plotter = DataLoader(data_dir, metadata_path)
+    if 'emb' in pn.state.cache:
+        emb = pn.state.cache['emb']
+    else:
+        pn.state.cache['emb'] = emb = Embedding(latent_dir, metadata_path, class_column='class')
+    pn.extension(loading_indicator=True,
+                 loading_spinner='dots',
+                 global_loading_spinner=True)
+    hv.extension('bokeh')
+    gv.extension('bokeh')
     dashboard = build_panel(plotter, emb, n_cols=3, n_rows=4)
     dashboard.servable(title='GaiaNet Embedding Explorer')

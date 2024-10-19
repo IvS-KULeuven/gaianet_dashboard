@@ -6,6 +6,11 @@ import polars as pl
 import numpy as np
 # from data_loader import DataLoader
 
+lc_schema = {'sourceid': pl.Int64,
+             'g_obstimes': pl.List(pl.Float64),
+             'g_val': pl.List(pl.Float64),
+             'g_valerr': pl.List(pl.Float64)}
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Panel')
@@ -23,14 +28,14 @@ if __name__ == '__main__':
     def load_lc1(sid):
         row, file = lc_index[sid]
         lc = pl.scan_parquet(
-            lc_dir / file
+            lc_dir / file, schema=lc_schema,
         ).select(cols).slice(row, 1).collect()
         return lc
 
     def load_lc2(sid):
         _, file = lc_index[sid]
         lc = pl.scan_parquet(
-            lc_dir / file
+            lc_dir / file, schema=lc_schema,
         ).select(cols).filter(
             pl.col('sourceid').eq(sid)
         ).collect()
