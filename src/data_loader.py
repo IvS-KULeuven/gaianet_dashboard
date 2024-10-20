@@ -8,7 +8,6 @@ import holoviews as hv
 import h5py
 from gaiaxpy import convert
 
-from preprocess import pack_light_curve, pack_spectra
 from silencer import suppress_print
 
 logger = logging.getLogger(__name__)
@@ -60,12 +59,17 @@ class DataLoader():
             for col in ['obstimes', 'val', 'valerr']:
                 self.lc_cols.append(f'{band}_{col}')
 
-    def get_features(self, sids: list[int]):
+    def get_features(self, sids: list[int]) -> pl.DataFrame:
         if len(sids) == 1:
             filter_expr = pl.col('source_id').eq(sids[0])
         else:
             filter_expr = pl.col('source_id').is_in(sids)
         return self.features.filter(filter_expr)
+
+    def get_frequency(self, sid: int) -> float:
+        return self.features.lazy().filter(
+            pl.col('source_id').eq(sid)
+        ).select(self.selected_frequency).collect().item()
 
     def plot_features(self,
                       sids: list[int],
@@ -168,12 +172,10 @@ class DataLoader():
         if sid is not None:
             lc = self.get_lightcurve(sid)
             time, mag, err = lc['g']
-            title = str(sid)
+            title = sid
             if folded:
                 # best_freq = estimate_dominant_frequency(lc, multiband=False)
-                best_freq = self.get_features(
-                    [int(sid)]
-                ).select(self.selected_frequency).item()
+                best_freq = self.get_frequency(int(sid))
                 P = 2.0/best_freq
                 time = np.mod(time, P)/P
                 title = title+f' f={best_freq:0.2f}'
@@ -198,7 +200,8 @@ class DataLoader():
             plots
         ).opts(shared_axes=True, title=title, fontsize={'title': 8})
 
-    def plot_spectra(self, sid: int,
+    def plot_spectra(self,
+                     sid: str,
                      width: int = 250,
                      height: int = 160,
                      pseudo_wavelenght_resolution: int = 60,
