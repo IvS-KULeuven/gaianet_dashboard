@@ -1,6 +1,7 @@
 import io
 from pathlib import Path
 import argparse
+import json
 from functools import partial
 from typing import Callable
 import logging
@@ -36,6 +37,7 @@ def datashade_embedding(emb_plot, cnorm: str = "eq_hist"):
 
 def build_panel(plotter: DataLoader,
                 embedding: Embedding,
+                class_metadata: dict,
                 n_rows: int = 3,
                 n_cols: int = 3):
     n_plots = n_rows*n_cols
@@ -65,8 +67,7 @@ def build_panel(plotter: DataLoader,
     emb_stream = {'x_dim': x_sel.param.value, 'y_dim': y_sel.param.value}
     bg_emb = hv.DynamicMap(plot_embedding, streams=emb_stream)
 
-    class_sel = pn.widgets.Select(
-        options=['none'] + emb.available_classes, value='none')
+    class_sel = pn.widgets.Select(groups=class_metadata, value='none')
 
     def plot_class(x_dim, y_dim, name='none'):
         if name == 'none':
@@ -315,6 +316,8 @@ if __name__.startswith("bokeh"):
     data_dir = Path(args.data_dir)
     metadata_path = Path(args.metadata_path)
     latent_dir = Path(args.latent_dir)
+    with open(data_dir / 'class_names.json', 'r') as f:
+        class_metadata = json.load(f)
     if 'plotter' in pn.state.cache:
         plotter = pn.state.cache['plotter']
     else:
@@ -328,5 +331,6 @@ if __name__.startswith("bokeh"):
                  global_loading_spinner=True)
     hv.extension('bokeh')
     gv.extension('bokeh')
-    dashboard = build_panel(plotter, emb, n_cols=3, n_rows=4)
+    dashboard = build_panel(plotter, emb, class_metadata,
+                            n_cols=3, n_rows=4)
     dashboard.servable(title='GaiaNet Embedding Explorer')

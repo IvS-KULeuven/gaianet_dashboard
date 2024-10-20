@@ -1,0 +1,117 @@
+{
+  "none": 
+  {
+    "No selection": "none"
+  },
+  "Cepheids": {
+    "Delta Cepheid": "DCEP",
+    "Anomalous Cepheid": "ACEP",
+    "Generic type-II Cepheid": "T2CEP",
+    "W Virginis variable": "CW",
+    "RV Tauri-type star": "RV",
+    "BL Herculis variable": "BLHER",
+    "Cepheid with unknown subtype": "CEP"
+  },
+  "RR Lyrae star":{
+    "Fundamental mode (type AB)": "RRAB",
+    "First overtone (type C)": "RRC",
+    "Double mode (type D)": "RRD",
+    "Anomalous RRL": "ARRD",
+    "RR Lyrae with unknown subtype": "RR"
+  },
+  "Long period variable":{
+    "Long period variable": "LPV",
+    "Long secondary period variable": "LSP",
+    "Mira type": "M",
+    "Mira type": "MIRA",
+    "Mira or semi-regular variable": "M|SR",
+    "Semi-regular type A": "SRA",
+    "Semi-regular type B": "SRB",
+    "Semi-regular type C": "SRC",
+    "Semi-regular type D": "SRD",
+    "Semi-regular type S": "SRS",
+    "Semi-regular with unknown type": "SR",
+    "Small amplitude red giant": "SARG",
+    "OGLE small amplitude red giant": "OSARG"
+  },
+  "Other pulsators": {
+    "B-Cephei variable": "BCEP",
+    "Slowly Pulsating B star": "SPB",
+    "Delta Scuti": "DSCT",
+    "Gamma Doradus": "GDOR",
+    "Delta Scuti Gamma Doradus hybrid": "DSCT+GDOR",
+    "SX Phoenicis": "SXPHE", 
+    "Delta Scuti SX Phoenicis hybrid": "DSCT|SXPHE"
+  },
+  "Blue variables":{
+    "B-type emission line star": "BE",
+    "Gamma Cassiopeiae star": "GCAS",
+    "S Doradus star": "SDOR",
+    "Wolf-Rayet star": "WR"
+  },
+  "Eclipsing binaries": {
+    "Algol type": "EA",
+    "Beta Lyrae type": "EB",
+    "W Ursae Majoris type": "EW",
+    "Eclipsing binary with unknown subtype": "ECL"
+  },
+  "Microlensing event": {
+    "Microlensing event": "MICROLENSING"
+  },
+  "Cataclysmic variable": {
+    "Cataclysmic variable": "CV"
+  },
+  "Variable white dwarf": {
+    "Generic white dwarf": "ZZ",
+    "Spectral type DA": "ZZA",
+    "Spectral type DB": "V777HER",
+    "Spectral type DO": "GWVIR"
+  },
+  "Subdwarf B star": {
+    "V1093 Herculis type": "V1093HER",
+    "V361 Hydrae type": "V361HYA"
+  },
+  "Young Stellar Object": {
+    "Generic YSO": "YSO",
+    "Dipper star": "DIP",
+    "Eruptive YSO": "FUOR2",
+    "Herbig Ae or Be type": "HAEBE", 
+    "UX Orionis star": "UXOR", 
+    "T Tauri star": "TTS",
+    "Classical T Tauri": "CTTS",
+    "Weak-lined T Tauri": "WTTS",
+    "Late G to early K pre-main-sequence T Tauri": "GTTS"
+  },
+  "Solar-like stars": {
+    "Generic solar-like star": "SOLAR_LIKE",
+    "BY Draconis type": "BY",
+    "Rotating spotted star": "ROT",
+    "Flaring star": "FLARES",
+    "BY or rotating star": "BY|ROT"
+  },
+  "ACV|CP|MCP|ROAM|ROAP|SXARI":{
+    "alpha 2 Canum Venaticorum": "ACV",
+    "Chemically peculiar": "CP",
+    "Magnetic chemically peculiar": "MCP",
+    "Rapidly oscillating Am type": "ROAM",
+    "Rapidly oscillating Ap type": "ROAP",
+    "SX Arietis star": "SXARI"
+  },
+  "Other variable stars":{
+    "Ellipsoidal variable": "ELL",
+    "R Corona Borealis variable": "RCB",
+    "RS Canum Venaticorum variable": "RS",
+    "Alpha Cygni-type star": "ACYG",
+    "Symbiotic variable star": "SYST",
+    "Z Andromedae type": "ZAND"
+  },
+  "Quasi-stellar object": {
+    "Quasi-stellar object": "QSO"
+  },
+  "Exoplanets": {
+    "Exoplanets": "EP"
+  }
+
+
+  
+}

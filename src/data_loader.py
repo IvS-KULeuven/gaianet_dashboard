@@ -107,8 +107,10 @@ class DataLoader():
         return hv.Layout(plots).cols(2).opts(shared_axes=False)
 
     def get_lightcurve(self,
-                       sid: str,
+                       sid: str | int,
                        pack_kwargs: dict = {}) -> dict[str, np.ndarray]:
+        if isinstance(sid, int):
+            sid = str(sid)
         if sid not in self.lc_index:
             raise ValueError(f"No light curves found for source {sid}")
         file = self.lc_index[sid]
@@ -116,7 +118,11 @@ class DataLoader():
             lc = f[sid][:]
         return {'g': lc}
 
-    def get_continuous_spectra(self, sid: str) -> dict[str, np.ndarray]:
+    def get_continuous_spectra(self,
+                               sid: str | int,
+                               ) -> dict[str, np.ndarray]:
+        if isinstance(sid, int):
+            sid = str(sid)
         if sid not in self.xp_index:
             raise ValueError(f"No Xp spectra found for source {sid}")
         file = self.xp_index[sid]
@@ -125,7 +131,7 @@ class DataLoader():
         return {'bp': xp[0], 'rp': xp[1]}
 
     def get_sampled_spectra(self,
-                            sid: str,
+                            sid: str | int,
                             pseudo_wavelenghts: np.ndarray | None = None,
                             ) -> dict[str, np.ndarray]:
         """

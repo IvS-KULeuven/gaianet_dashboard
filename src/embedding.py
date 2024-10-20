@@ -54,7 +54,7 @@ class Embedding:
 
     def __init__(self,
                  latent_dir: Path,
-                 metadata: Path,
+                 metadata_path: Path,
                  class_column: str = 'macro_class'):
         self.class_column = class_column
         df_emb = pl.scan_parquet(
@@ -65,13 +65,10 @@ class Embedding:
             ['sourceid', r'^embedding_.$', 'label']
         )
         df_source = pl.scan_parquet(
-            metadata
+            metadata_path
         ).select(
-            ['sourceid', 'macro_class', 'class', 'L', 'B', 'in_andromeda_survey']
+            ['sourceid', 'macro_class', 'class', 'L', 'B']
         )
-        #.with_columns(
-        #    pl.col('macro_class').replace_strict(short_names, default='none')
-        #)
         df_emb = df_emb.join(df_source, on='sourceid', how='left').collect()
         self.emb_columns = [c for c in df_emb.columns if 'embedding_' in c]
         self.available_classes = df_emb.filter(
