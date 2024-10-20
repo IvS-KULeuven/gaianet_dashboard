@@ -3,7 +3,6 @@ from typing import Any
 import logging
 import numpy as np
 import polars as pl
-from preprocess import preprocess_coordinates
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +39,15 @@ short_names = {
     'SYST|ZAND': 'SYST|ZAND',
     'V1093HER|V361HYA': 'V1093HER|V361HYA',
 }
+
+
+def preprocess_coordinates(longitude: np.ndarray,
+                           latitude: np.ndarray,
+                           origin=0.0):
+    longitude = np.remainder(longitude + 360 - origin, 360)
+    longitude[longitude > 180] -= 360
+    longitude = -longitude
+    return longitude, latitude
 
 
 class Embedding:
@@ -120,9 +128,9 @@ class Embedding:
         if sids is None:
             long, lat = self.emb.select(['L', 'B']).to_numpy().T
         else:
-            long, lat = self.emb.filter(
+            long, lat = self.emb.lazy().filter(
                 pl.col('sourceid').is_in(sids)
-            ).select(['L', 'B']).to_numpy().T
+            ).select(['L', 'B']).collect().to_numpy().T
         return preprocess_coordinates(long, lat, origin=origin)
 
     def get_all_metadata(self, sid: int) -> dict[str, Any]:
