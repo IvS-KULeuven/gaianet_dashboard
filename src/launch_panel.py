@@ -46,20 +46,24 @@ def build_panel(plotter: DataLoader,
     sids_pipe_plots = streams.Pipe(data=[])
 
     # Embedding plot
-    def plot_embedding(x_dim, y_dim, class_name=None, sids=None, alpha=1.0):
+    def plot_embedding(x_dim: str,
+                       y_dim: str,
+                       class_name: str | None = None,
+                       sids: np.ndarray | None = None,
+                       **plot_kwargs):
         sel_emb = embedding.get_2d_embedding(
             sids=sids, class_name=class_name, x_dim=x_dim, y_dim=y_dim)
         return hv.Points(
             sel_emb,
             kdims=['x', 'y'],
-        ).opts(framewise=True, alpha=alpha)
+        ).opts(**plot_kwargs)
 
     emb_columns = emb.emb_columns
     emb_select = partial(pn.widgets.Select, width=150, options=emb_columns)
-    x_sel = emb_select(value=emb_columns[0])
+    x_sel = emb_select(value=emb_columns[0], description='asd')
     y_sel = emb_select(value=emb_columns[1])
     emb_stream = {'x_dim': x_sel.param.value, 'y_dim': y_sel.param.value}
-    bg_emb = hv.DynamicMap(plot_embedding, streams=emb_stream).opts(framewise=True)
+    bg_emb = hv.DynamicMap(plot_embedding, streams=emb_stream)
 
     class_sel = pn.widgets.Select(
         options=['none'] + emb.available_classes, value='none')
@@ -73,17 +77,16 @@ def build_panel(plotter: DataLoader,
     fg_emb = hv.DynamicMap(
         plot_class,
         streams=emb_stream | {'name': class_sel.param.value}
-    ).opts(framewise=True)
+    )
 
     # Source selection via textbox
     sids_input = pn.widgets.TextAreaInput(
-        value="", width=300, height=200, disabled=False, max_length=500000,
+        value="", width=300, height=180, disabled=False, max_length=500000,
         placeholder=(
             "Enter one Gaia DR3 source id per line, "
             "e.g\n2190530735119392128\n5874749936451323264\n"
             "...\nor upload them in a plain text file. "
             "Then press submit to highlight them in the embedding. "
-            "Press resample to change the plotted light curves."
         ), styles={'font-size': '12px'}
     )
     sids_submit_btn = pn.widgets.Button(
@@ -117,21 +120,13 @@ def build_panel(plotter: DataLoader,
         sids_input.value = "\n".join([str(s) for s in sids])
         sids_pipe.send(sids)
         update_plotted_sids(sids=sids)
-    bind_text_sel = pn.bind(update_selection_via_textbox,
-                            value=sids_submit_btn)
-
-    # Clear source id text box button
-    sids_clear_btn = pn.widgets.Button(
-        name="🗑️ Clear", width=button_width,
-    )
-
-    def clear_text_box(value):
-        sids_input.value = ""
-    bind_text_clear = pn.bind(clear_text_box, value=sids_clear_btn)
+    pn.bind(update_selection_via_textbox, value=sids_submit_btn, watch=True)
 
     # Copy selection to clipboard
     sids_copy_btn = pn.widgets.Button(
-        name="📋 Copy", width=button_width)
+        name="📋 Copy", width=button_width,
+        description="Copies the content of the text box to your clipboard"
+    )
     sids_copy_btn.js_on_click(
         args={"source": sids_input},
         code="navigator.clipboard.writeText(source.value);"
@@ -144,19 +139,45 @@ def build_panel(plotter: DataLoader,
             return io.StringIO(str(sids))
     sids_download_btn = pn.widgets.FileDownload(
         callback=download_sourceids, filename='sids.txt',
-        label="⬇️  Download", width=button_width)
+        label="⬇️  Download", width=button_width,
+        description=(
+            "Downloads the content of the text box as a sids.txt file"
+        )
+    )
 
     def disable_download(event):
         sids = sids_input.value
         if sids == '':
             sids_download_btn.disabled = True
+            sids_clear_btn.disabled = True
         else:
             sids_download_btn.disabled = False
+            sids_clear_btn.disabled = False
     pn.bind(disable_download, sids_input.param.value, watch=True)
+
     # Upload CSV with selection
-    # TODO
-    sids_upload_btn = pn.widgets.Button(
-        name="📤 Upload", width=button_width)
+    sids_upload_btn = pn.widgets.FileInput(
+        name="📤 Upload", width=2*button_width, sizing_mode="fixed",
+        multiple=False, directory=False, accept='.csv,.txt',
+    )
+
+    def parse_text_file(value):
+        if not value or not isinstance(value, bytes):
+            return None
+        sids_input.value = value.decode("utf8")
+        update_selection_via_textbox(None)
+    pn.bind(parse_text_file, sids_upload_btn, watch=True)
+
+    # Clear source id text box button
+    sids_clear_btn = pn.widgets.Button(
+        name="🗑️ Clear", width=button_width, disabled=False,
+        description="Empties the text box"
+    )
+
+    def clear_text_box(value):
+        sids_input.value = ""
+        sids_upload_btn.clear()
+    pn.bind(clear_text_box, value=sids_clear_btn, watch=True)
 
     # Source selection via embedding plot
     box_selector = streams.BoundsXY(source=bg_emb,
@@ -168,9 +189,11 @@ def build_panel(plotter: DataLoader,
             x_dim=x_sel.value,
             y_dim=y_sel.value,
         )
+        sids_upload_btn.clear()
         sids_input.value = "\n".join([str(s) for s in sids])
         sids_pipe.send(sids)
         update_plotted_sids(sids=sids)
+    # TODO, WHY WATCH DOES NOT WORK WITH THIS ONE?
     bind_box_sel = pn.bind(update_selection_via_plot,
                            bounds=box_selector.param.bounds)
 
@@ -182,12 +205,17 @@ def build_panel(plotter: DataLoader,
         ).opts(marker='star', size=5, alpha=0.25)
 
     sel_emb = hv.DynamicMap(update_embedding_selection,
-                            streams={'data': sids_pipe} | emb_stream).opts(framewise=True)
+                            streams={'data': sids_pipe} | emb_stream)
 
     # Update light curves and spectra
     resample_btn = pn.widgets.Button(
-        name="🔄 Resample", width=button_width)
-    bind_reload = pn.bind(update_plotted_sids, resample_btn.param.value)
+        name="🔄 Resample", width=button_width,
+        description=(
+            "Chooses 12 sources from the current selection "
+            "and plots their light curves and spectra."
+        )
+    )
+    pn.bind(update_plotted_sids, resample_btn.param.value, watch=True)
 
     # Light curve and spectra plots
     fold_check = pn.widgets.Checkbox(name='Fold light curves', value=False)
@@ -241,28 +269,29 @@ def build_panel(plotter: DataLoader,
         ('Features', features_dmap),
         dynamic=True
     )
-    bg_emb = datashade_embedding(bg_emb).opts(framewise=True)
+    bg_emb = datashade_embedding(bg_emb)
     return pn.Row(
         pn.Column(
-            hv.Overlay([bg_emb, fg_emb, sel_emb]).opts(framewise=True).collate(),
+            hv.Overlay([bg_emb, fg_emb, sel_emb]).collate(),
             pn.Row(x_sel, y_sel, class_sel),
             pn.Row(
-                sids_input,
-                pn.GridBox(
+                pn.Column(
+                    pn.GridBox(
+                        sids_copy_btn,
+                        sids_submit_btn,
+                        resample_btn,
+                        sids_download_btn,
+                        sids_clear_btn,
+                        margin=0,
+                        ncols=2,
+                    ),
                     sids_upload_btn,
-                    sids_copy_btn,
-                    sids_submit_btn,
-                    resample_btn,
-                    sids_download_btn,
-                    sids_clear_btn,
-                    margin=0,
-                    ncols=2,
                 ),
+                sids_input,
             ),
         ),
         pn.Column(pn.Row(fold_check), tabs),
-        pn.Column(pn.param.ParamFunction(bind_box_sel, loading_indicator=True),
-                  bind_text_sel, bind_text_clear, bind_reload),
+        pn.Column(pn.param.ParamFunction(bind_box_sel, loading_indicator=True)),
     )
 
 
