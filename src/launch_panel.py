@@ -182,7 +182,8 @@ def build_panel(plotter: DataLoader,
 
     # Source selection via embedding plot
     box_selector = streams.BoundsXY(source=bg_emb,
-                                    bounds=(-1., -1., 1., 1.))
+                                    bounds=(-0.1, -0.1, 0.1, 0.1))
+
 
     def update_selection_via_plot(bounds: tuple[float, float, float, float]):
         sids = embedding.find_sids_in_box(
