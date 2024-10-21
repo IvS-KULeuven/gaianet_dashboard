@@ -53,12 +53,12 @@ def preprocess_coordinates(longitude: np.ndarray,
 class Embedding:
 
     def __init__(self,
-                 latent_dir: Path,
+                 latent_path: Path,
                  metadata_path: Path,
                  class_column: str = 'macro_class'):
         self.class_column = class_column
         df_emb = pl.scan_parquet(
-            latent_dir / '*.parquet'
+            latent_path
         ).rename(
             {'source_id': 'sourceid'}
         ).select(

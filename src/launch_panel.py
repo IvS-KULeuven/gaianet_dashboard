@@ -311,21 +311,29 @@ if __name__.startswith("bokeh"):
     parser = argparse.ArgumentParser(description='Panel')
     parser.add_argument('data_dir', type=str)
     parser.add_argument('metadata_path', type=str)
-    parser.add_argument('latent_dir', type=str)
+    parser.add_argument('latent_path', type=str)
     args = parser.parse_args()
     data_dir = Path(args.data_dir)
     metadata_path = Path(args.metadata_path)
-    latent_dir = Path(args.latent_dir)
+    latent_path = Path(args.latent_path)
+    # More details about the classes at:
+    # https://www.aanda.org/articles/aa/full_html/2023/06/aa45591-22/aa45591-22.html
     with open(data_dir / 'class_names.json', 'r') as f:
         class_metadata = json.load(f)
     if 'plotter' in pn.state.cache:
         plotter = pn.state.cache['plotter']
     else:
-        pn.state.cache['plotter'] = plotter = DataLoader(data_dir, metadata_path)
+        pn.state.cache['plotter'] = plotter = DataLoader(
+            data_dir,
+            metadata_path
+        )
     if 'emb' in pn.state.cache:
         emb = pn.state.cache['emb']
     else:
-        pn.state.cache['emb'] = emb = Embedding(latent_dir, metadata_path, class_column='class')
+        pn.state.cache['emb'] = emb = Embedding(
+            latent_path, metadata_path,
+            class_column='class'
+        )
     pn.extension(loading_indicator=True,
                  loading_spinner='dots',
                  global_loading_spinner=True)
