@@ -97,7 +97,7 @@ class DataLoader():
         # Top 5 classes
         c = selection.select('class').filter(
             pl.col('class').ne('UNKNOWN')
-        ).group_by('class').count().head(5)
+        ).group_by('class').count().top_k(5, by='count')
         plots.append(
             hv.Bars(
                 c.to_pandas(), kdims=['class'], vdims=['count']
@@ -172,8 +172,8 @@ class DataLoader():
                         sid: str,
                         width: int = 250,
                         height: int = 160,
-                        plot_errors: bool = False,
-                        folded: bool = True,
+                        plot_errors: bool = True,
+                        folded: bool = False,
                         **kwargs):
         if sid is not None:
             lc = self.get_lightcurve(sid)
@@ -184,7 +184,7 @@ class DataLoader():
                 best_freq = self.get_frequency(int(sid))
                 P = 2.0/best_freq
                 time = np.mod(time, P)/P
-                title = title+f' f={best_freq:0.2f}'
+                title = title+f' f={best_freq:5.5g}'
         else:
             time, mag, err = [], [], []
             title = ''
