@@ -4,111 +4,109 @@
     "No selection": "none"
   },
   "Cepheids": {
-    "Delta Cepheid (DCEP)": "DCEP",
-    "Anomalous Cepheid (ACEP)": "ACEP",
-    "Generic type-II Cepheid (T2CEP)": "T2CEP",
-    "W Virginis variable (CW)": "CW",
-    "RV Tauri-type star (RV)": "RV",
-    "BL Herculis variable (BLHER)": "BLHER",
-    "Cepheid with unknown subtype (CEP)": "CEP"
+    "ACEP: Anomalous Cepheid (123)": "ACEP",
+    "BLHER: BL Herculis variable (218)": "BLHER",
+    "CW: W Virginis variable (305)": "CW",
+    "DCEP: Delta Cepheid (1510)": "DCEP",
+    "RV: RV Tauri-type star (111)": "RV",
+    "T2CEP: Generic type-II Cepheid (4)": "T2CEP",
+    "CEP: Cepheid with unknown subtype (1998)": "CEP"
   },
-  "RR Lyrae star":{
-    "AB type/Fundamental mode (RRAB)": "RRAB",
-    "C type/First overtone (RRC)": "RRC",
-    "D type/Double mode (RRD)": "RRD",
-    "Anomalous RRL (ARRD)": "ARRD",
-    "RR Lyrae with unknown subtype (RR)": "RR"
+  "RR Lyrae":{
+    "ARRD: Anomalous RRL (9)": "ARRD",
+    "RRAB: AB type/Fundamental mode (1854)": "RRAB",
+    "RRC: C type/First overtone (1251)": "RRC",
+    "RRD: D type/Double mode (696)": "RRD",
+    "RR: RR Lyrae with unknown subtype (215)": "RR"
   },
-  "Long period variable":{
-    "Generic Long period variable (LPV)": "LPV",
-    "Long secondary period variable (LSP)": "LSP",
-    "Mira type (M)": "M",
-    "Mira type (MIRA)": "MIRA",
-    "Mira or semi-regular variable (M|SR)": "M|SR",
-    "Semi-regular type A (SRA)": "SRA",
-    "Semi-regular type B (SRB)": "SRB",
-    "Semi-regular type C (SRC)": "SRC",
-    "Semi-regular type D (SRD)": "SRD",
-    "Semi-regular type S (SRS)": "SRS",
-    "Semi-regular with unknown type (SR)": "SR",
-    "Small amplitude red giant (SARG)": "SARG",
-    "OGLE small amplitude red giant (OSARG)": "OSARG"
+  "Long period variables":{
+    "LPV: Generic Long period variable (1604)": "LPV",
+    "LSP: Long secondary period variable (879)": "LSP",
+    "M: Mira type (1843)": "M",
+    "M|SR: Mira or semi-regular variable (1744)": "M|SR",
+    "OSARG: OGLE small amplitude red giant (229)": "OSARG",
+    "SARG: Small amplitude red giant (1633)": "SARG",
+    "SR: Semi-regular with unknown type (1553)": "SR",
+    "SRA: Semi-regular type A (272)": "SRA",
+    "SRB: Semi-regular type B (442)": "SRB",
+    "SRC: Semi-regular type C (18)": "SRC",
+    "SRD: Semi-regular type D (171)": "SRD",
+    "SRS: Semi-regular type S (352)": "SRS"
   },
   "Other pulsators": {
-    "B-Cephei variable (BCEP)": "BCEP",
-    "Slowly Pulsating B star (SPB)": "SPB",
-    "Delta Scuti (DSCT)": "DSCT",
-    "Gamma Doradus (GDOR)": "GDOR",
-    "Delta Scuti Gamma Doradus hybrid (DSCT+GDOR)": "DSCT+GDOR",
-    "SX Phoenicis (SXPHE)": "SXPHE", 
-    "DSCT or SXPHE": "DSCT|SXPHE"
+    "BCEP: B-Cephei variable (136)": "BCEP",
+    "DSCT: Delta Scuti (3024)": "DSCT",
+    "DSCT+GDOR: Delta Scuti Gamma Doradus hybrid (96)": "DSCT+GDOR",
+    "GDOR: Gamma Doradus (372)": "GDOR",
+    "SPB: Slowly Pulsating B star (93)": "SPB",
+    "SXPHE: SX Phoenicis (21)": "SXPHE"
   },
   "Blue variables":{
-    "B-type emission line star (BE)": "BE",
-    "Gamma Cassiopeiae star (GCAS)": "GCAS",
-    "S Doradus star (SDOR)": "SDOR",
-    "Wolf-Rayet star (WR)": "WR"
+    "BE: B-type emission line star (429)": "BE",
+    "GCAS: Gamma Cassiopeiae star (323)": "GCAS",
+    "SDOR: S Doradus star (9)": "SDOR",
+    "WR: Wolf-Rayet star (20)": "WR"
   },
   "Eclipsing binaries": {
-    "Algol type (EA)": "EA",
-    "Beta Lyrae type (EB)": "EB",
-    "W Ursae Majoris type (EW)": "EW",
-    "Eclipsing binary with unknown subtype (ECL)": "ECL"
-  },
-  "Microlensing event": {
-    "Microlensing event": "MICROLENSING"
-  },
-  "Cataclysmic variable": {
-    "Cataclysmic variable (CV)": "CV"
+    "EA: Algol type (1741)": "EA",
+    "EB: Beta Lyrae type (2618)": "EB",
+    "EW: W Ursae Majoris type (1823)": "EW",
+    "ECL: Eclipsing binary with unknown subtype (622)": "ECL"
   },
   "Variable white dwarf": {
-    "Generic white dwarf (ZZ)": "ZZ",
-    "Spectral type DA (ZZA)": "ZZA",
-    "Spectral type DB (V777HER)": "V777HER",
-    "Spectral type DO (GWVIR)": "GWVIR"
+    "GWVIR: Spectral type DO (29)": "GWVIR",
+    "V777HER: Spectral type DB (11)": "V777HER",
+    "ZZ: Generic white dwarf (5)": "ZZ",
+    "ZZA: Spectral type DA (102)": "ZZA"
   },
   "Subdwarf B star": {
-    "V1093 Herculis type (V109HER)": "V1093HER",
-    "V361 Hydrae type (V361HYA)": "V361HYA"
+    "V109HER: V1093 Herculis type (3)": "V1093HER",
+    "V361HYA: V361 Hydrae type (19)": "V361HYA"
   },
-  "Young Stellar Object": {
-    "Generic YSO (YSO)": "YSO",
-    "Dipper star (DIP)": "DIP",
-    "Eruptive YSO (FUOR2)": "FUOR2",
-    "Herbig Ae or Be type (HAEBE)": "HAEBE", 
-    "UX Orionis star (UXOR)": "UXOR", 
-    "T Tauri star (TTS)": "TTS",
-    "Classical T Tauri (CTTS)": "CTTS",
-    "Weak-lined T Tauri (WTTS)": "WTTS",
-    "Late G to early K pre-main-sequence T Tauri (GTTS)": "GTTS"
+  "Young stellar objects": {
+    "CTTS: Classical T Tauri (59)": "CTTS",
+    "DIP: Dipper star (1)": "DIP",
+    "FOUR: Eruptive YSO (4)": "FUOR",
+    "HAEBE: Herbig Ae or Be type (21)": "HAEBE", 
+    "TTS: T Tauri star (173)": "TTS",
+    "UXOR: UX Orionis star (36)": "UXOR", 
+    "WTTS: Weak-lined T Tauri (105)": "WTTS",
+    "YSO: Generic young stellar object (1300)": "YSO"
   },
   "Solar-like stars": {
-    "Generic solar-like star (SOLAR_LIKE)": "SOLAR_LIKE",
-    "BY Draconis type (BY)": "BY",
-    "Rotating spotted star (ROT)": "ROT",
-    "Flaring star (FLARES)": "FLARES",
-    "BY or ROT": "BY|ROT"
+    "BY: BY Draconis type (2911)": "BY",
+    "FLARES: Flaring star (216)": "FLARES",
+    "ROT: Rotating spotted star (1243)": "ROT",
+    "SOLAR_LIKE: Generic solar-like star (641)": "SOLAR_LIKE"
   },
-  "ACV|CP|MCP|ROAM|ROAP|SXARI":{
-    "alpha 2 Canum Venaticorum (ACV)": "ACV",
-    "Chemically peculiar (CP)": "CP",
-    "Magnetic chemically peculiar (MCP)": "MCP",
-    "Rapidly oscillating Am type (ROAM)": "ROAM",
-    "Rapidly oscillating Ap type (ROAP)": "ROAP",
-    "SX Arietis star (SXARI)": "SXARI"
+  "ACV|CP|MCP|ROAM|ROAP|SXARI": {
+    "ACV: alpha 2 Canum Venaticorum (239)": "ACV",
+    "CP: Chemically peculiar (57)": "CP",
+    "MCP: Magnetic chemically peculiar (688)": "MCP",
+    "ROAM: Rapidly oscillating Am type (2)": "ROAM",
+    "ROAP: Rapidly oscillating Ap type (4)": "ROAP",
+    "SXARI: SX Arietis star (6)": "SXARI"
   },
   "Other variable stars":{
-    "Ellipsoidal variable (ELL)": "ELL",
-    "R Corona Borealis variable (RCB)": "RCB",
-    "RS Canum Venaticorum variable (RS)": "RS",
-    "Alpha Cygni-type star (ACYG)": "ACYG",
-    "Symbiotic variable star (SYST)": "SYST",
-    "Z Andromedae type (ZAND)": "ZAND"
+    "ACYG: Alpha Cygni-type star (28)": "ACYG",
+    "CV: Cataclysmic variable (256)": "CV",
+    "ELL: Ellipsoidal variable (248)": "ELL",
+    "HB: (7)": "HMXB",
+    "HMXB: (6)": "HMXB",
+    "PCEB: (11)": "PCEB",
+    "RCB: R Corona Borealis variable (26)": "RCB",
+    "RS: RS Canum Venaticorum variable (946)": "RS",
+    "SYST: Symbiotic variable star (100)": "SYST",
+    "UV (38)": "UV",
+    "ZAND: Z Andromedae type (44)": "ZAND"
   },
-  "Quasi-stellar object": {
-    "Quasi-stellar object (QSO)": "QSO"
+  "Quasi-stellar objects": {
+    "BLAZAR: Blazar (503)": "BLAZAR",
+    "BLLAC: BL Lacertae object (7)": "BLLAC",
+    "Generic quasi-stellar object (734)": "QSO"
   },
-  "Exoplanets": {
-    "Exoplanets (EP)": "EP"
+  "Other phenomena": {
+    "EP: Exoplanets (36)": "EP",
+    "MICROLENSING: Microlensing event (3)": "MICROLENSING"
   }
 }
