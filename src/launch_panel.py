@@ -509,8 +509,8 @@ if __name__.startswith("bokeh"):
         pn.state.cache['emb'] = emb = MetadataHandler(
             latent_path,
             data_dir / 'features.parquet',
-            data_dir / 'meta2.csv',
-            data_dir / 'labels.csv',
+            data_dir / 'metadata' / 'meta.csv',
+            data_dir / 'metadata' / 'labels.csv',
         )
     pn.extension(loading_indicator=True,
                  loading_spinner='dots',
