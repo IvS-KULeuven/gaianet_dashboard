@@ -371,7 +371,7 @@ def build_panel(plotter: DataLoaderSQLite,
                 data = user_data.selected_data[col]
             #if 'frequency' in col:
             #    data = np.log10(data)
-            plot_u = hv.Distribution((data), kdims=[col]).opts(color='red', framewise=True, bandwitdh=bw)
+            plot_u = hv.Distribution((data), kdims=[col]).opts(color='red', framewise=True, bandwidth=bw)
             data = []
             if class_selection is not None:
                 data = class_selection[col]
