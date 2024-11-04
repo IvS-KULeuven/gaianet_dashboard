@@ -37,8 +37,8 @@ def build_panel(plotter: DataLoaderSQLite,
     button_width = 100
 
     # Pipes for passing source ids
-    sids_pipe = streams.Pipe(data=[])
-    ls = link_selections.instance(unselected_alpha=1.)
+    # sids_pipe = streams.Pipe(data=[])
+    # ls = link_selections.instance(unselected_alpha=1.0)
 
     # Embedding plot
     def plot_embedding(x_dim: str,
@@ -47,8 +47,9 @@ def build_panel(plotter: DataLoaderSQLite,
                        sids: np.ndarray | None = None,
                        **plot_kwargs):
         kdims = [x_dim, y_dim]
+        print(class_name, sids)
         if class_name is None and sids is None:
-            return hv.Points(embedding.metadata_hv, kdims)
+            return hv.Points(embedding.metadata.select([x_dim, y_dim]).to_numpy(), kdims)
         return hv.Points(
             embedding.filter_embedding(sids=sids, class_name=class_name), kdims
         ).opts(**plot_kwargs)
@@ -173,13 +174,17 @@ def build_panel(plotter: DataLoaderSQLite,
                 return io.StringIO(sids_txt)
 
         def update_selection_via_plot(self, expr):
-            # print("update_selection", expr, ls.selection_expr, self.last_expr)
-            expr = ls.selection_expr
+            # expr = ls.selection_expr
             if expr is None:
                 return
             if not str(expr) == str(self.last_expr):
                 tinit = time.time()
-                self.selected_data = embedding.metadata_hv.select(expr).data
+                # selection = embedding.metadata_hv.select(expr).data
+                selection = embedding.filter_embedding_bound(expr)
+                if len(selection) > 0:
+                    self.selected_data = selection
+                else:
+                    self.selected_data = None
                 self.last_expr = expr
                 logger.info(f"Update selection via box: {time.time()-tinit:0.4f}")
                 self.resample()
@@ -202,6 +207,27 @@ def build_panel(plotter: DataLoaderSQLite,
                 pn.state.notifications.info(f'{n_sources} sources found in the dataset.')
             self.selected_data = df
             logger.info(f"Validate uploaded sids: {time.time()-tinit:0.4f}")
+            self.resample()
+            self.update_trigger.clicks += 1
+
+        def update_selection_via_textbox(self, value):
+            tinit = time.time()
+            sids_textbox = sids_input.value
+            if not isinstance(sids_textbox, str):
+                return
+            if len(sids_textbox) == 0:
+                return
+            if sids_textbox[-1] == '\n':
+                sids_textbox = sids_textbox[:-1]
+            df = embedding.validate_uploaded_sources(sids_textbox)
+            if df is None:
+                pn.state.notifications.error('Error parsing the uploaded file.')
+            else:
+                n_sources = len(df)
+                pn.state.notifications.info(f'{n_sources} sources found in the dataset.')
+            self.selected_data = df
+            # sids_input.value = "\n".join([str(s) for s in sids])
+            logger.info(f"Validate textbox sids: {time.time()-tinit:0.4f}")
             self.resample()
             self.update_trigger.clicks += 1
 
@@ -456,9 +482,10 @@ def build_panel(plotter: DataLoaderSQLite,
         dynamic=True
     )
     bg_emb = datashade_embedding(bg_emb)
+    # bg_emb = ls(bg_emb)
     return pn.Row(
         pn.Column(
-            pn.Tabs(('Unlabeled', hv.Overlay([ls(bg_emb), sel_emb, sel_class_emb]).collate()),
+            pn.Tabs(('Unlabeled', hv.Overlay([bg_emb, sel_emb, sel_class_emb]).collate()),
                     ('Labeled', bg_emb2_dyn), dynamic=True),
             pn.Row(x_sel, y_sel, class_sel),
             pn.Row(

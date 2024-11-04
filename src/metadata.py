@@ -107,6 +107,12 @@ class MetadataHandler:
         logger.info(f"Filter 2d embedding: {time.time()-tinit:0.4f}")
         return hv.Dataset(emb.to_pandas())
 
+    def filter_embedding_bound(self,
+                               bounds: tuple[float, float, float, float]
+                               ) -> hv.Dataset:
+        expr = (pl.col('embedding_0') > bounds[0]) & (pl.col('embedding_0') < bounds[2]) & (pl.col('embedding_1') > bounds[1]) & (pl.col('embedding_1') < bounds[3])
+        return self.metadata.filter(expr).to_pandas()
+
     def validate_uploaded_sources(self, sids_text):
         try:
             df_upload = pl.read_csv(
