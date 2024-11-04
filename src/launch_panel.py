@@ -16,7 +16,7 @@ import panel as pn
 import geoviews as gv
 from cartopy import crs
 
-from data_loader import DataLoader, load_npz
+from data_loader import DataLoaderSQLite, load_npz
 from metadata import MetadataHandler
 #  from plots import plot_lightcurve, plot_dmdt, plot_spectra, plot_raw_lightcurves
 from plots import lc_layout, dmdt_layout, xp_layout
@@ -39,7 +39,7 @@ def datashade_embedding(emb_plot, cnorm: str = "eq_hist"):
            active_tools=['box_select', 'wheel_zoom'])
 
 
-def build_panel(plotter: DataLoader,
+def build_panel(plotter: DataLoaderSQLite,
                 embedding: MetadataHandler,
                 class_metadata: dict,
                 data_dir: Path,
@@ -281,7 +281,8 @@ def build_panel(plotter: DataLoader,
             self.labels = labels
             self.lcs, self.xps, self.dmdts = [], [], []
             for sid in sids:
-                lc, xp, dmdt = load_npz(data_dir, sid)
+                #lc, xp, dmdt = load_npz(data_dir, sid)
+                lc, xp, dmdt = plotter.retrieve_data(sid)
                 self.lcs.append(lc)
                 self.xps.append(xp)
                 self.dmdts.append(dmdt)
@@ -507,7 +508,7 @@ if __name__.startswith("bokeh"):
     if 'plotter' in pn.state.cache:
         plotter = pn.state.cache['plotter']
     else:
-        pn.state.cache['plotter'] = plotter = DataLoader(
+        pn.state.cache['plotter'] = plotter = DataLoaderSQLite(
             data_dir,
         )
     if 'emb' in pn.state.cache:
