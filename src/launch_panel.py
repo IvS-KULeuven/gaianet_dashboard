@@ -65,16 +65,15 @@ def build_panel(plotter: DataLoaderSQLite,
     def plot_labeled_embedding(x_dim, y_dim,
                                class_name=None,
                                sids=None):
-        sel_emb = embedding.get_2d_embedding(
-            sids=None, class_name=None, x_dim=x_dim, y_dim=y_dim,
+        kdims = [x_dim, y_dim]
+        points = hv.Points(
+            embedding.labeled_metadata.to_pandas(),
+            kdims, vdims=['macro_class']
         )
-        mask = sel_emb['label'] != 'UNKNOWN'
-        return hv.Points(
-            {'x': sel_emb['x'][mask],
-             'y': sel_emb['y'][mask],
-             'label': sel_emb['label'][mask]
-             }, kdims=['x', 'y'], vdims=['label'],
-        )
+        return points.opts(width=650, height=500,
+                           color='macro_class', cmap=colors, alpha=0.25,
+                           tools=['hover'],
+                           legend_position='right', fontsize={'legend': 6})
 
     emb_columns = emb.emb_columns
     emb_select = partial(pn.widgets.Select, width=150, options=emb_columns)
@@ -82,13 +81,13 @@ def build_panel(plotter: DataLoaderSQLite,
     y_sel = emb_select(value=emb_columns[1])
     emb_stream = {'x_dim': x_sel.param.value, 'y_dim': y_sel.param.value}
     bg_emb = hv.DynamicMap(plot_embedding, streams=emb_stream)
-    #bg_emb2 = hv.DynamicMap(plot_labeled_embedding, streams=emb_stream)
 
-    #aggregator = ds.by('label', ds.count())
+    bg_emb2_dyn = hv.DynamicMap(plot_labeled_embedding, streams=emb_stream)
+    #aggregator = ds.by('macro_class', ds.count())
     #bg_emb2_dyn = hd.dynspread(
     #    hd.datashade(bg_emb2, aggregator=aggregator, color_key=colors),
-    #    max_px=3, threshold=0.75, shape='square',
-    #).opts(legend_position='right', fontsize={'legend': 8})
+    #    max_px=3, threshold=0.75, shape='circle',
+    #).opts(legend_position='right', fontsize={'legend': 6}, width=650, height=500)
 
     class_sel = pn.widgets.Select(groups=class_metadata, value='none')
 
@@ -365,17 +364,18 @@ def build_panel(plotter: DataLoaderSQLite,
             # USER DATA SHOULD UPDATE THIS ONCE
             class_selection = embedding.filter_embedding(class_name=selected_class, sids=None)
         plots = []
+        bw = 0.05
         for col in ['magnitude_mean', 'magnitude_std', 'bp_rp', 'ruwe', 'NUFFT_best_frequency']:
             data = []
             if user_data.selected_data is not None:
                 data = user_data.selected_data[col]
             #if 'frequency' in col:
             #    data = np.log10(data)
-            plot_u = hv.Distribution((data), kdims=[col]).opts(color='red', framewise=True)
+            plot_u = hv.Distribution((data), kdims=[col]).opts(color='red', framewise=True, bandwitdh=bw)
             data = []
             if class_selection is not None:
                 data = class_selection[col]
-            plot_l = hv.Distribution(data, kdims=[col]).opts(color='blue', framewise=True)
+            plot_l = hv.Distribution(data, kdims=[col]).opts(color='blue', framewise=True, bandwidth=bw)
             plots.append(hv.Overlay([plot_u, plot_l]).opts(shared_axes=True, width=350, height=200))
 
         bar_data = [('', 0)]
@@ -444,7 +444,8 @@ def build_panel(plotter: DataLoaderSQLite,
     bg_emb = datashade_embedding(bg_emb)
     return pn.Row(
         pn.Column(
-            hv.Overlay([ls(bg_emb), sel_emb, sel_class_emb]).collate(),
+            pn.Tabs(('Unlabeled', hv.Overlay([ls(bg_emb), sel_emb, sel_class_emb]).collate()),
+                    ('Labeled', bg_emb2_dyn), dynamic=True),
             pn.Row(x_sel, y_sel, class_sel),
             pn.Row(
                 pn.Column(

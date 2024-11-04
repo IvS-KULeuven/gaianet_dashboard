@@ -8,6 +8,31 @@ import holoviews as hv
 
 logger = logging.getLogger(__name__)
 
+short_names = {
+    'ACEP|BLHER|CEP|CW|DCEP|RV|T2CEP': 'CEP',
+    'ACV|CP|MCP|ROAM|ROAP|SXARI': 'ACV',
+    # 'ACYG': 'ACYG',
+    'ARRD|RRAB|RRC|RRD': 'RR',
+    # 'BCEP': 'BCEP',
+    'BE|GCAS|SDOR|WR': 'BE',
+    'BY|FLARES|ROT|SOLAR_LIKE': 'SOLAR',
+    'CTTS|GTTS|HAEBE|DIP|FUOR|PULS_PMS|TTS|UXOR|WTTS|YSO': 'YSO',
+    'CV': 'CV',
+    'DSCT|DSCT+GDOR|GDOR|SXPHE': 'DSCT|GDOR',
+    'EA|EB|ECL|EW': 'ECL',
+    'EHM_ZZA|ELM_ZZA|GWVIR|HOT_ZZA|V777HER|ZZ|ZZA': 'WD',
+    'ELL': 'ELL',
+    # 'EP': 'EP',
+    'LPV|LSP|M|OSARG|SARG|SR|SRA|SRB|SRC|SRD': 'LPV',
+    # 'MICROLENSING': 'ULENS',
+    'QSO': 'QSO',
+    # 'RCB': 'RCB',
+    'RS': 'RS',
+    # 'SPB': 'SPB',
+    # 'SYST|ZAND': 'SYST|ZAND',
+    #'V1093HER|V361HYA': 'V1093HER|V361HYA',
+}
+
 
 def filter_sids_expression(sids: list[int]) -> pl.Expr:
     if len(sids) == 1:
@@ -49,6 +74,11 @@ class MetadataHandler:
             labels, on='source_id', how='left'
         ).collect()
         self.metadata_hv = hv.Dataset(self.metadata.to_pandas())
+        self.labeled_metadata = self.metadata.filter(
+            ~pl.col('macro_class').is_null() & pl.col('macro_class').ne('UNKNOWN')
+        ).with_columns(
+            pl.col('macro_class').replace_strict(short_names, default=None)
+        ).drop_nulls().sort(by='macro_class')
         print(self.metadata.shape)
         meta_cols = self.metadata.columns
         self.available_periods = [c for c in meta_cols if 'frequency' in c]
@@ -87,58 +117,3 @@ class MetadataHandler:
             logger.error(f"Failed to parse uploaded file: {e}")
             return None
         return df_upload.join(self.metadata, on='source_id').to_pandas()
-
-
-    def get_galactic_coordinates(self,
-                                 sids: list[int] | None = None,
-                                 origin: float = 0.0,
-                                 ) -> tuple[np.ndarray, np.ndarray]:
-        tinit = time.time()
-        if sids is None:
-            long, lat = self.metadata.select(['L', 'B']).to_numpy().T
-        else:
-            long, lat = self.metadata.filter(
-                pl.col('source_id').is_in(sids)
-            ).select(['L', 'B']).to_numpy().T
-        long, lat = preprocess_coordinates(long, lat, origin=origin)
-        logger.info(f"Filter galactic coordinates: {time.time()-tinit:0.4f}")
-        return long, lat
-
-    def plot_features(self,
-                      sids: list[int],
-                      width: int = 350,
-                      height: int = 250):
-        tinit = time.time()
-        selection = self.get_features(sids)
-        plots = []
-
-        def kde_plot(data, label, bw=0.05):
-            return hv.Distribution(
-                data, kdims=label
-            ).opts(width=width, height=height, framewise=True, bandwidth=bw)
-
-        feature = selection.select('magnitude_mean').to_numpy()
-        label = 'G-band mean'
-        plots.append(kde_plot(feature, label))
-        feature = selection.select('magnitude_std').to_numpy()
-        label = 'G-band standard deviation'
-        plots.append(kde_plot(feature, label))
-        feature = selection.select(self.selected_frequency).to_numpy()
-        feature = np.log10(feature)
-        # TODO: ADD COLOR
-        label = 'Log10 dominant frequency'
-        plots.append(kde_plot(feature, label))
-        # Top 5 classes
-        c = selection.select('class').filter(
-            pl.col('class').ne('UNKNOWN')
-        ).group_by('class').count().top_k(5, by='count')
-        plots.append(
-            hv.Bars(
-                c.to_pandas(), kdims=['class'], vdims=['count']
-            ).opts(width=350, height=250)
-        )
-        logger.info(f"Building feature plot: {time.time()-tinit:0.4f}")
-        return hv.Layout(plots).cols(2).opts(shared_axes=False)
-
-
-        
