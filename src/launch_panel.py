@@ -16,9 +16,8 @@ import panel as pn
 import geoviews as gv
 from cartopy import crs
 
-from data_loader import DataLoaderSQLite, load_npz
+from data_loader import DataLoaderSQLite
 from metadata import MetadataHandler
-#  from plots import plot_lightcurve, plot_dmdt, plot_spectra, plot_raw_lightcurves
 from plots import lc_layout, dmdt_layout, xp_layout
 
 logger = logging.getLogger(__name__)
@@ -108,20 +107,6 @@ def build_panel(plotter: DataLoaderSQLite,
     sids_submit_btn = pn.widgets.Button(
         name="✅ Submit", width=button_width)
 
-    def update_plotted_sids(value=None,
-                            sids: np.ndarray | None = None):
-        tinit = time.time()
-        if sids is None:
-            sids = np.array(sids_pipe.data)
-        if len(sids) > n_plots:
-            perm = np.random.permutation(len(sids))
-            sids = sids[perm][:n_plots]
-        sids_plots = [str(s) for s in sids]
-        if len(sids_plots) < n_plots:
-            sids_plots += [None]*(n_plots-len(sids))
-        #sids_pipe_plots.send(sids_plots)
-        logger.info(f"Sending to sides_pipe_plots: {time.time()-tinit:0.4f}")
-
     def update_selection_via_textbox(value):
         tinit = time.time()
         sids_textbox = sids_input.value
@@ -139,7 +124,7 @@ def build_panel(plotter: DataLoaderSQLite,
         sids_input.value = "\n".join([str(s) for s in sids])
         sids_pipe.send(sids)
         logger.info(f"Sending to sids_pipe: {time.time()-tinit:0.4f}")
-        update_plotted_sids(sids=sids)
+        # update_plotted_sids(sids=sids)
 
     # Copy selection to clipboard
     sids_copy_btn = pn.widgets.Button(
@@ -151,19 +136,7 @@ def build_panel(plotter: DataLoaderSQLite,
         code="navigator.clipboard.writeText(source.value);"
     )
 
-    # Download selection as CSV
-    def download_sourceids():
-        sids = sids_input.value
-        if sids is not None:
-            return io.StringIO(str(sids))
-    sids_download_btn = pn.widgets.FileDownload(
-        callback=download_sourceids, filename='sids.txt',
-        label="⬇️  Download", width=button_width,
-        description=(
-            "Downloads the content of the text box as a sids.txt file"
-        )
-    )
-
+    
     def disable_download(event):
         sids = sids_input.value
         if sids == '':
@@ -172,7 +145,7 @@ def build_panel(plotter: DataLoaderSQLite,
         else:
             sids_download_btn.disabled = False
             sids_clear_btn.disabled = False
-    pn.bind(disable_download, sids_input.param.value, watch=True)
+    # pn.bind(disable_download, sids_input.param.value, watch=True)
 
     # Upload CSV with selection
     sids_upload_btn = pn.widgets.FileInput(
@@ -247,6 +220,12 @@ def build_panel(plotter: DataLoaderSQLite,
         def update_selected_class(self, data):
             self.user_selected_class = data
 
+        def print_select_sids(self):
+            if self.selected_data is not None:
+                sids = self.selected_data['source_id'].to_numpy().astype('str')
+                sids_txt = '\n'.join(sids.tolist())
+                return io.StringIO(sids_txt)
+
         def update_selection_via_plot(self, expr):
             print("update_selection", expr, ls.selection_expr, self.last_expr)
             expr = ls.selection_expr
@@ -301,6 +280,15 @@ def build_panel(plotter: DataLoaderSQLite,
             self.resample_trigger.clicks += 1
 
     user_data = UserData()
+
+    # Download selection as CSV
+    sids_download_btn = pn.widgets.FileDownload(
+        callback=user_data.print_select_sids, filename='sids.txt',
+        label="⬇️  Download", width=button_width,
+        description=(
+            "Downloads the content of the text box as a sids.txt file"
+        )
+    )
 
     def plot_class(x_dim, y_dim, name='none'):
         if name == 'none':
