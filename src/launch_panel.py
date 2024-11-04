@@ -1,4 +1,4 @@
-import io
+from io import StringIO
 from pathlib import Path
 import argparse
 import json
@@ -8,7 +8,7 @@ import logging
 import numpy as np
 import holoviews as hv
 from holoviews import streams
-from holoviews.selection import link_selections
+# from holoviews.selection import link_selections
 import holoviews.operation.datashader as hd
 import panel as pn
 import geoviews as gv
@@ -37,7 +37,6 @@ def build_panel(plotter: DataLoaderSQLite,
     button_width = 100
 
     # Pipes for passing source ids
-    # sids_pipe = streams.Pipe(data=[])
     # ls = link_selections.instance(unselected_alpha=1.0)
 
     # Embedding plot
@@ -93,28 +92,6 @@ def build_panel(plotter: DataLoaderSQLite,
             "Then press submit to highlight them in the embedding. "
         ), styles={'font-size': '12px'}
     )
-    sids_submit_btn = pn.widgets.Button(
-        name="✅ Submit", width=button_width)
-
-    def update_selection_via_textbox(value):
-        tinit = time.time()
-        sids_textbox = sids_input.value
-        if not isinstance(sids_textbox, str):
-            return
-        if len(sids_textbox) == 0:
-            return
-        if sids_textbox[-1] == '\n':
-            sids_textbox = sids_textbox[:-1]
-        if '\n' not in set(sids_textbox):
-            sids = [int(sids_textbox)]
-        else:
-            sids = [int(s) for s in sids_textbox.split('\n')]
-        sids = embedding.validate_selection(sids)
-        sids_input.value = "\n".join([str(s) for s in sids])
-        sids_pipe.send(sids)
-        logger.info(f"Sending to sids_pipe: {time.time()-tinit:0.4f}")
-        # update_plotted_sids(sids=sids)
-
     # Copy selection to clipboard
     sids_copy_btn = pn.widgets.Button(
         name="📋 Copy", width=button_width,
@@ -141,10 +118,9 @@ def build_panel(plotter: DataLoaderSQLite,
         description="Empties the text box"
     )
 
-    #def clear_text_box(value):
-    #    sids_input.value = ""
-    #    sids_upload_btn.clear()
-    # pn.bind(clear_text_box, value=sids_clear_btn, watch=True)
+    def clear_text_box(value):
+        sids_input.value = ""
+    pn.bind(clear_text_box, value=sids_clear_btn, watch=True)
 
     # Source selection via embedding plot
     box_selector = streams.BoundsXY(source=bg_emb,
@@ -171,7 +147,7 @@ def build_panel(plotter: DataLoaderSQLite,
             if self.selected_data is not None:
                 sids = self.selected_data['source_id'].to_numpy().astype('str')
                 sids_txt = '\n'.join(sids.tolist())
-                return io.StringIO(sids_txt)
+                return StringIO(sids_txt)
 
         def update_selection_via_plot(self, expr):
             # expr = ls.selection_expr
@@ -191,45 +167,36 @@ def build_panel(plotter: DataLoaderSQLite,
                 self.update_trigger.clicks += 1
 
         def update_selection_via_upload(self, value):
-            tinit = time.time()
-            from io import StringIO
             try:
                 text = StringIO(value.decode("utf8"))
             except Exception as e:
                 logger.error(f"Failed to parse text: {e}")
                 pn.state.notifications.error('Error reading the uploaded file.')
                 return
+            self._parse_text(text)
+
+        def _parse_text(self, text):
+            tinit = time.time()
             df = embedding.validate_uploaded_sources(text)
             if df is None:
-                pn.state.notifications.error('Error parsing the uploaded file.')
+                pn.state.notifications.error('Error parsing the input.')
             else:
                 n_sources = len(df)
                 pn.state.notifications.info(f'{n_sources} sources found in the dataset.')
             self.selected_data = df
-            logger.info(f"Validate uploaded sids: {time.time()-tinit:0.4f}")
+            logger.info(f"Validate input sids: {time.time()-tinit:0.4f}")
             self.resample()
             self.update_trigger.clicks += 1
 
         def update_selection_via_textbox(self, value):
-            tinit = time.time()
             sids_textbox = sids_input.value
-            if not isinstance(sids_textbox, str):
+            try:
+                sids_textbox = StringIO(sids_textbox)
+            except Exception as e:
+                logger.error(f"Failed to parse text: {e}")
+                pn.state.notifications.error('Error reading the uploaded file.')
                 return
-            if len(sids_textbox) == 0:
-                return
-            if sids_textbox[-1] == '\n':
-                sids_textbox = sids_textbox[:-1]
-            df = embedding.validate_uploaded_sources(sids_textbox)
-            if df is None:
-                pn.state.notifications.error('Error parsing the uploaded file.')
-            else:
-                n_sources = len(df)
-                pn.state.notifications.info(f'{n_sources} sources found in the dataset.')
-            self.selected_data = df
-            # sids_input.value = "\n".join([str(s) for s in sids])
-            logger.info(f"Validate textbox sids: {time.time()-tinit:0.4f}")
-            self.resample()
-            self.update_trigger.clicks += 1
+            self._parse_text(sids_textbox)
 
         def resample(self, *args, **kwargs):
             if self.selected_data is None:
@@ -247,6 +214,7 @@ def build_panel(plotter: DataLoaderSQLite,
             freqs = freqs.tolist()
             labels = labels.tolist()
             self.sids = sids
+            sids_input.value = '\n'.join([str(s) for s in sids])
             self.freqs = freqs
             self.labels = labels
             self.lcs, self.xps, self.dmdts = [], [], []
@@ -268,6 +236,10 @@ def build_panel(plotter: DataLoaderSQLite,
 
     user_data = UserData()
 
+    sids_submit_btn = pn.widgets.Button(
+        name="✅ Submit", width=button_width)
+
+    pn.bind(user_data.update_selection_via_textbox, sids_submit_btn, watch=True)
     # Download selection as CSV
     sids_download_btn = pn.widgets.FileDownload(
         callback=user_data.print_select_sids, filename='sids.txt',
@@ -443,8 +415,9 @@ def build_panel(plotter: DataLoaderSQLite,
 
     # Sky map
     sky = gv.Points(embedding.metadata_hv, kdims=['longitude', 'latitude'])
-    bg_sky = hd.dynspread(hd.datashade(sky, cmap="gray", cnorm='eq_hist')).opts(
-        projection=crs.Mollweide(), width=800, height=400)
+    bg_sky = hd.dynspread(
+        hd.datashade(sky, cmap="gray", cnorm='eq_hist')
+    ).opts(projection=crs.Mollweide(), width=800, height=400)
 
     def update_sky_map(trigger, selected_class):
         class_selection = None

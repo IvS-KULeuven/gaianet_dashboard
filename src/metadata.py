@@ -114,9 +114,10 @@ class MetadataHandler:
         return self.metadata.filter(expr).to_pandas()
 
     def validate_uploaded_sources(self, sids_text):
+        print(sids_text)
         try:
             df_upload = pl.read_csv(
-                sids_text,
+                sids_text, schema={'source_id': pl.Int64},
                 has_header=False, new_columns=['source_id']
             )
         except Exception as e:
