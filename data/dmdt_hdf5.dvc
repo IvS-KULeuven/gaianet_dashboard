@@ -1,6 +1,0 @@
-outs:
-- md5: 9c1c5dd3ac5003addc56175cb0847e0b.dir
-  size: 3847365988
-  nfiles: 2125
-  hash: md5
-  path: dmdt_hdf5
