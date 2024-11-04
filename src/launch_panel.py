@@ -96,7 +96,7 @@ def build_panel(plotter: DataLoaderSQLite,
 
     # Source selection via textbox
     sids_input = pn.widgets.TextAreaInput(
-        value="", width=300, height=180, disabled=False, max_length=500000,
+        value="", width=320, height=180, disabled=False, max_length=500000,
         placeholder=(
             "Enter one Gaia DR3 source id per line, "
             "e.g\n2190530735119392128\n5874749936451323264\n"
@@ -149,7 +149,7 @@ def build_panel(plotter: DataLoaderSQLite,
 
     # Upload CSV with selection
     sids_upload_btn = pn.widgets.FileInput(
-        name="📤 Upload", width=2*button_width, sizing_mode="fixed",
+        name="📤 Upload", width=3*button_width, sizing_mode="fixed",
         multiple=False, directory=False, accept='.csv,.txt',
     )
 
@@ -208,12 +208,12 @@ def build_panel(plotter: DataLoaderSQLite,
             self.selected_data = None
             self.user_selected_class = None
             self.last_expr = None
-            self.sids = [None]*12
-            self.labels = [None]*12
-            self.lcs = [None]*12
-            self.xps = [None]*12
-            self.dmdts = [None]*12
-            self.freqs = [None]*12
+            self.sids = [None]*n_plots
+            self.labels = [None]*n_plots
+            self.lcs = [None]*n_plots
+            self.xps = [None]*n_plots
+            self.dmdts = [None]*n_plots
+            self.freqs = [None]*n_plots
             self.update_trigger = pn.widgets.Button(visible=False)
             self.resample_trigger = pn.widgets.Button(visible=False)
 
@@ -247,8 +247,8 @@ def build_panel(plotter: DataLoaderSQLite,
             sids = self.selected_data['source_id'].to_numpy()
             freqs = self.selected_data['NUFFT_best_frequency'].to_numpy()
             labels = self.selected_data['class'].to_numpy()
-            if len(sids) > 12:
-                perm = np.random.permutation(len(sids))[:12]
+            if len(sids) > n_plots:
+                perm = np.random.permutation(len(sids))[:n_plots]
                 sids = sids[perm]
                 freqs = freqs[perm]
                 labels = labels[perm]
@@ -260,16 +260,12 @@ def build_panel(plotter: DataLoaderSQLite,
             self.labels = labels
             self.lcs, self.xps, self.dmdts = [], [], []
             for sid in sids:
-                #lc, xp, dmdt = load_npz(data_dir, sid)
                 lc, xp, dmdt = plotter.retrieve_data(sid)
                 self.lcs.append(lc)
                 self.xps.append(xp)
                 self.dmdts.append(dmdt)
-            #self.lcs = [plotter.get_lightcurve(sid) for sid in sids]
-            #self.xps = [plotter.get_spectra(sid) for sid in sids]
-            #self.dmdts = [plotter.get_dmdt(sid) for sid in sids]
-            if len(sids) < 12:
-                to_add = 12 - len(sids)
+            if len(sids) < n_plots:
+                to_add = n_plots - len(sids)
                 self.sids += [None]*to_add
                 self.lcs += [None]*to_add
                 self.xps += [None]*to_add
@@ -312,7 +308,7 @@ def build_panel(plotter: DataLoaderSQLite,
         if fold:
             freqs = user_data.freqs
         else:
-            freqs = [None]*12
+            freqs = [None]*n_plots
         layout = lc_layout(data=lcs, sids=sids, labels=labels, frequencies=freqs, highlight_label=highlight_label, n_cols=3)
         logger.info(f"Update lc data map: {time.time()-tinit:0.4f}")
         return layout
@@ -322,7 +318,7 @@ def build_panel(plotter: DataLoaderSQLite,
         sids = user_data.sids
         xps = user_data.xps
         labels = user_data.labels
-        freqs = [None]*12
+        freqs = [None]*n_plots
         layout = xp_layout(data=xps, sids=sids, labels=labels, frequencies=freqs, highlight_label=highlight_label, n_cols=3)
         logger.info(f"Update xp data map: {time.time()-tinit:0.4f}")
         return layout
@@ -332,8 +328,8 @@ def build_panel(plotter: DataLoaderSQLite,
         sids = user_data.sids
         dmdts = user_data.dmdts
         labels = user_data.labels
-        freqs = [None]*12
-        layout = dmdt_layout(data=dmdts, sids=sids, labels=labels, frequencies=freqs, highlight_label=highlight_label, n_cols=4)
+        freqs = [None]*n_plots
+        layout = dmdt_layout(data=dmdts, sids=sids, labels=labels, frequencies=freqs, highlight_label=highlight_label, n_cols=3)
         logger.info(f"Update dmdt data map: {time.time()-tinit:0.4f}")
         return layout
 
@@ -514,5 +510,5 @@ if __name__.startswith("bokeh"):
     hv.extension('bokeh')
     gv.extension('bokeh')
     dashboard = build_panel(plotter, emb, class_metadata, data_dir,
-                            n_cols=3, n_rows=4)
+                            n_cols=3, n_rows=3)
     dashboard.servable(title='GaiaNet Embedding Explorer')

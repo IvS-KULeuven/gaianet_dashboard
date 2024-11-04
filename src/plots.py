@@ -34,7 +34,7 @@ def plot_lightcurve(data: np.ndarray | None,
                     label: str | None,
                     frequency: float | None = None,
                     width: int = 285,
-                    height: int = 160,
+                    height: int = 200,
                     plot_errors: bool = True,
                     fold_with_double_period: bool = True,
                     ):
@@ -94,7 +94,7 @@ def plot_spectra(data: np.ndarray | None,
                  sid: str | None,
                  label: str | None,
                  width: int = 285,
-                 height: int = 160,
+                 height: int = 200,
                  **kwargs,
                  ):
     title = format_title(sid, label)
@@ -124,15 +124,15 @@ def plot_spectra(data: np.ndarray | None,
 def plot_dmdt(data: np.ndarray | None,
               sid: str | None,
               label: str | None,
-              width: int = 200,
-              height: int = 220,
+              width: int = 250,
+              height: int = 210,
               **kwargs,
               ):
     title = format_title(sid, label)
     if data is None:
         data = []
     return hv.Image(data).opts(
-        title=title, fontsize={'title': 6}, tools=['hover'],
+        title=title, fontsize={'title': 8}, tools=['hover'],
         cmap='blues', clim=(0, 1), framewise=True, width=width, height=height
     )
 
