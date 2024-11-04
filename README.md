@@ -33,7 +33,7 @@ dvc pull
 (After activating the environment) Launch the dashboard in a browser tab
 
 ```
-python -m panel serve src/launch_panel.py --show --args data data/meta.parquet data/latent_space/mixed_emb_ae_l2_xpTrue_dmdtTrue_foldTrue_featTrue_m2_T1.0_a0.25_balanced_ln_2hl.parquet
+python -m panel serve src/launch_panel.py --show --args data data/latent_space/vae.csv
 ```
 
 

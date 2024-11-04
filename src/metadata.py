@@ -50,7 +50,7 @@ class MetadataHandler:
                  meta_path: Path,
                  labels_path: Path,
                  ):
-        embedding = pl.scan_parquet(
+        embedding = pl.scan_csv(
             embedding_path
         ).select(
             ['source_id', r'^embedding_.$']
