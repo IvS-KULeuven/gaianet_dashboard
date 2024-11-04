@@ -16,7 +16,7 @@ import panel as pn
 import geoviews as gv
 from cartopy import crs
 
-from data_loader import DataLoader
+from data_loader import DataLoader, load_npz
 from metadata import MetadataHandler
 #  from plots import plot_lightcurve, plot_dmdt, plot_spectra, plot_raw_lightcurves
 from plots import lc_layout, dmdt_layout, xp_layout
@@ -42,6 +42,7 @@ def datashade_embedding(emb_plot, cnorm: str = "eq_hist"):
 def build_panel(plotter: DataLoader,
                 embedding: MetadataHandler,
                 class_metadata: dict,
+                data_dir: Path,
                 n_rows: int = 3,
                 n_cols: int = 3):
     n_plots = n_rows*n_cols
@@ -278,9 +279,15 @@ def build_panel(plotter: DataLoader,
             self.sids = sids
             self.freqs = freqs
             self.labels = labels
-            self.lcs = [plotter.get_lightcurve(sid) for sid in sids]
-            self.xps = [plotter.get_spectra(sid) for sid in sids]
-            self.dmdts = [plotter.get_dmdt(sid) for sid in sids]
+            self.lcs, self.xps, self.dmdts = [], [], []
+            for sid in sids:
+                lc, xp, dmdt = load_npz(data_dir, sid)
+                self.lcs.append(lc)
+                self.xps.append(xp)
+                self.dmdts.append(dmdt)
+            #self.lcs = [plotter.get_lightcurve(sid) for sid in sids]
+            #self.xps = [plotter.get_spectra(sid) for sid in sids]
+            #self.dmdts = [plotter.get_dmdt(sid) for sid in sids]
             if len(sids) < 12:
                 to_add = 12 - len(sids)
                 self.sids += [None]*to_add
@@ -517,6 +524,6 @@ if __name__.startswith("bokeh"):
                  global_loading_spinner=True)
     hv.extension('bokeh')
     gv.extension('bokeh')
-    dashboard = build_panel(plotter, emb, class_metadata,
+    dashboard = build_panel(plotter, emb, class_metadata, data_dir,
                             n_cols=3, n_rows=4)
     dashboard.servable(title='GaiaNet Embedding Explorer')
