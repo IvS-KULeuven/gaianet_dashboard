@@ -3,6 +3,7 @@ from functools import partial
 import numpy as np
 import holoviews as hv
 import holoviews.operation.datashader as hd
+from holoviews.operation.stats import univariate_kde
 
 
 def labeled_bgcolor(plot, _):
@@ -143,10 +144,22 @@ dmdt_layout = partial(make_layout, plot_function=plot_dmdt)
 
 
 # TODO: MAKE DYNAMIC MAP SCALE THE AXES
-def datashade_embedding(emb_plot, cnorm: str = "eq_hist"):
+def datashade_embedding(emb_plot,
+                        cnorm: str = "eq_hist",
+                        cmap="gray"):
     return hd.dynspread(
-        hd.datashade(emb_plot, cmap="gray", cnorm=cnorm),
+        hd.datashade(emb_plot, cmap=cmap, cnorm=cnorm),
         max_px=3, threshold=0.75, shape='circle',
     ).opts(width=650, height=500, tools=['box_select'],
            active_tools=['box_select', 'wheel_zoom'])
 
+
+def plot_feature(data: np.ndarray | list,
+                 col_name: str,
+                 color: str,
+                 bw: float = 0.1,
+                 bin_range: tuple[float, float] | None = None,
+                 ):
+    plot = hv.Distribution(data, kdims=[col_name])
+    plot = univariate_kde(plot, bin_range=bin_range, bandwidth=bw, n_samples=300)
+    return plot.opts(color=color, framewise=True, alpha=0.5)

@@ -6,7 +6,6 @@ import time
 from functools import partial
 import logging
 import numpy as np
-import datashader as ds
 import holoviews as hv
 from holoviews import streams
 from holoviews.selection import link_selections
@@ -17,7 +16,7 @@ from cartopy import crs
 
 from data_loader import DataLoaderSQLite
 from metadata import MetadataHandler
-from plots import lc_layout, dmdt_layout, xp_layout
+from plots import lc_layout, dmdt_layout, xp_layout, plot_feature, datashade_embedding
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +26,6 @@ colors = [
     'navy', 'coral', 'salmon', 'darkgreen', 'orchid', 'sienna',
     'turquoise', 'maroon', 'darkblue'
 ]
-
-# TODO: MAKE DYNAMIC MAP SCALE THE AXES
-def datashade_embedding(emb_plot, cnorm: str = "eq_hist"):
-    return hd.dynspread(
-        hd.datashade(emb_plot, cmap="gray", cnorm=cnorm),
-        max_px=3, threshold=0.75, shape='circle',
-    ).opts(width=650, height=500, tools=['box_select'],
-           active_tools=['box_select', 'wheel_zoom'])
 
 
 def build_panel(plotter: DataLoaderSQLite,
@@ -149,9 +140,9 @@ def build_panel(plotter: DataLoaderSQLite,
         description="Empties the text box"
     )
 
-    def clear_text_box(value):
-        sids_input.value = ""
-        sids_upload_btn.clear()
+    #def clear_text_box(value):
+    #    sids_input.value = ""
+    #    sids_upload_btn.clear()
     # pn.bind(clear_text_box, value=sids_clear_btn, watch=True)
 
     # Source selection via embedding plot
@@ -285,14 +276,14 @@ def build_panel(plotter: DataLoaderSQLite,
             points = hv.Points([], kdims)
         else:
             points = hv.Points(user_data.selected_data, kdims)
-        # DATASHADE IF SELECTION IS MORE THAN 10K
-        return points.opts(alpha=0.5, color='red')
+        return points.opts(color='red', alpha=0.5)
 
     sel_emb = hv.DynamicMap(
         pn.bind(plot_selection,
                 trigger=user_data.update_trigger.param.clicks,
                 x_dim=x_sel.param.value, y_dim=y_sel.param.value)
     )
+    # sel_emb = datashade_embedding(sel_emb, cmap='reds')
 
     # Light curve and spectra plots
     fold_check = pn.widgets.Checkbox(name='Fold light curves', value=False)
@@ -364,35 +355,58 @@ def build_panel(plotter: DataLoaderSQLite,
             # USER DATA SHOULD UPDATE THIS ONCE
             class_selection = embedding.filter_embedding(class_name=selected_class, sids=None)
         plots = []
-        bw = 0.05
-        for col in ['magnitude_mean', 'magnitude_std', 'bp_rp', 'ruwe', 'NUFFT_best_frequency']:
-            data = []
+        pretty_name = {'magnitude_mean': 'Mean magnitude (g)',
+                       'magnitude_std': 'StdDev magnitude (g)',
+                       'bp_rp': 'Color (Mean Bp - Mean Rp)',
+                       'NUFFT_best_frequency': 'Dominant frequency [cycles/days]',
+                       'period': 'Dominant period [days]'}
+        for col in ['magnitude_mean', 'magnitude_std', 'bp_rp']:
+            data_u, data_l = [], []
             if user_data.selected_data is not None:
-                data = user_data.selected_data[col]
-            #if 'frequency' in col:
-            #    data = np.log10(data)
-            plot_u = hv.Distribution((data), kdims=[col]).opts(color='red', framewise=True, bandwidth=bw)
-            data = []
+                data_u = user_data.selected_data[col].to_numpy()
+            col_name = pretty_name[col]
+            plot_u = plot_feature(data_u, col_name, color='red')
             if class_selection is not None:
-                data = class_selection[col]
-            plot_l = hv.Distribution(data, kdims=[col]).opts(color='blue', framewise=True, bandwidth=bw)
+                data_l = class_selection[col]
+            plot_l = plot_feature(data_l, col_name, color='blue')
             plots.append(hv.Overlay([plot_u, plot_l]).opts(shared_axes=True, width=350, height=200))
 
         bar_data = [('', 0)]
         if user_data.selected_data is not None:
             data = user_data.selected_data['class']
             labels, counts = np.unique(data.dropna().to_numpy(), return_counts=True)
-            idx = np.argsort(counts)[::-1]
-            labels, counts = labels[idx], counts[idx]
-            if len(labels) > 5:
-                labels = labels[:5]
-                counts = counts[:5]
-            bar_data = [(str(label), count) for label, count in zip(labels, counts)]
+            if len(counts) > 0:
+                idx = np.argsort(counts)[::-1]
+                labels, counts = labels[idx], counts[idx]
+                if len(labels) > 5:
+                    labels = labels[:5]
+                    counts = counts[:5]
+                bar_data = [(str(label), count) for label, count in zip(labels, counts)]
         plots.append(
             hv.Bars(
                 bar_data, kdims=['Class'], vdims=['Count']
             ).opts(width=350, height=200, framewise=True)
         )
+        col = 'NUFFT_best_frequency'
+        bin_range = (0, 25)
+        data_u, data_l = [], []
+        if user_data.selected_data is not None:
+            data_u = user_data.selected_data[col].to_numpy()
+        col_name = pretty_name[col]
+        plot_u = plot_feature(data_u, col_name, color='red', bin_range=bin_range)
+        if class_selection is not None:
+            data_l = class_selection[col]
+        plot_l = plot_feature(data_l, col_name, color='blue', bin_range=bin_range)
+        plots.append(hv.Overlay([plot_u, plot_l]).opts(shared_axes=True, width=350, height=200))
+        bin_range = (0, 1000)
+        col_name = pretty_name['period']
+        if isinstance(data_u, np.ndarray):
+            data_u = 1.0/data_u
+        if isinstance(data_l, np.ndarray):
+            data_l = 1.0/data_l
+        plot_u = plot_feature(data_u, col_name, color='red', bin_range=bin_range)
+        plot_l = plot_feature(data_l, col_name, color='blue', bin_range=bin_range)
+        plots.append(hv.Overlay([plot_u, plot_l]).opts(shared_axes=True, width=350, height=200))
         logger.info(f"Building feature plot: {time.time()-tinit:0.4f}")
         return hv.Layout(plots).cols(2).opts(shared_axes=False)
     feature_dmap = hv.DynamicMap(
