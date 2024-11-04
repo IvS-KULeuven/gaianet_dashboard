@@ -1,4 +1,5 @@
 from typing import Callable
+from itertools import pairwise
 from functools import partial
 import numpy as np
 import holoviews as hv
@@ -122,18 +123,33 @@ def plot_spectra(data: np.ndarray | None,
     ).opts(shared_axes=True, title=title, fontsize={'title': 8})
 
 
+time_bins = [0.07, 0.1, 0.5, 20, 50]  # Right bin is open
+magnitude_bins = np.linspace(-3, 3, 22)
+xticks, yticks = [], []
+xticks = [f'({b1},{b2})' for b1, b2 in pairwise(time_bins)]
+xticks += [f'({time_bins[-1]},inf)']
+yticks += [f'(-inf,{magnitude_bins[0]:3.2f})']
+yticks += [f'({b1:3.2f},{b2:3.2f})' for b1, b2 in pairwise(magnitude_bins)]
+yticks += [f'({magnitude_bins[-1]:3.2f},inf)']
+
+
 def plot_dmdt(data: np.ndarray | None,
               sid: str | None,
               label: str | None,
-              width: int = 250,
-              height: int = 210,
+              width: int = 285,
+              height: int = 250,
               **kwargs,
               ):
     title = format_title(sid, label)
-    if data is None:
-        data = []
-    return hv.Image(data).opts(
-        title=title, fontsize={'title': 8}, tools=['hover'],
+    kdims = ['dt bin', 'dm bin']
+    if data is not None:
+        plot_data = (xticks, yticks, data)
+    else:
+        plot_data = (xticks, yticks, np.zeros(shape=(23, 5)))
+    plot = hv.HeatMap(plot_data, kdims=kdims)
+    return plot.opts(
+        title=title,  tools=['hover'], xrotation=0,
+        fontsize={'title': 8, 'labels': 8, 'xticks': 6, 'yticks': 6},
         cmap='blues', clim=(0, 1), framewise=True, width=width, height=height
     )
 
