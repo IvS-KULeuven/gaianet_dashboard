@@ -72,13 +72,22 @@ class MetadataHandler:
         emb = self.metadata
         if sids is not None:
             emb = emb.filter(pl.col('source_id').is_in(sids))
-        #else:
-        #    sids = emb.select(['source_id']).to_series().to_numpy()
         if class_name is not None:
             emb = emb.filter(pl.col('class').eq(class_name))
-        #x, y = emb.select([x_dim, y_dim]).to_numpy().T
         logger.info(f"Filter 2d embedding: {time.time()-tinit:0.4f}")
         return hv.Dataset(emb.to_pandas())
+
+    def validate_uploaded_sources(self, sids_text):
+        try:
+            df_upload = pl.read_csv(
+                sids_text,
+                has_header=False, new_columns=['source_id']
+            )
+        except Exception as e:
+            logger.error(f"Failed to parse uploaded file: {e}")
+            return None
+        return df_upload.join(self.metadata, on='source_id').to_pandas()
+
 
     def get_galactic_coordinates(self,
                                  sids: list[int] | None = None,

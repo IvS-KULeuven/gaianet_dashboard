@@ -4,7 +4,6 @@ import argparse
 import json
 import time
 from functools import partial
-from typing import Callable
 import logging
 import numpy as np
 import datashader as ds
@@ -41,7 +40,6 @@ def datashade_embedding(emb_plot, cnorm: str = "eq_hist"):
 def build_panel(plotter: DataLoaderSQLite,
                 embedding: MetadataHandler,
                 class_metadata: dict,
-                data_dir: Path,
                 n_rows: int = 3,
                 n_cols: int = 3):
     n_plots = n_rows*n_cols
@@ -146,19 +144,6 @@ def build_panel(plotter: DataLoaderSQLite,
             sids_clear_btn.disabled = False
     # pn.bind(disable_download, sids_input.param.value, watch=True)
 
-    # Upload CSV with selection
-    sids_upload_btn = pn.widgets.FileInput(
-        name="📤 Upload", width=3*button_width, sizing_mode="fixed",
-        multiple=False, directory=False, accept='.csv,.txt',
-    )
-
-    def parse_text_file(value):
-        if not value or not isinstance(value, bytes):
-            return None
-        sids_input.value = value.decode("utf8")
-        update_selection_via_textbox(None)
-    pn.bind(parse_text_file, sids_upload_btn, watch=True)
-
     # Clear source id text box button
     sids_clear_btn = pn.widgets.Button(
         name="🗑️ Clear", width=button_width, disabled=False,
@@ -168,40 +153,12 @@ def build_panel(plotter: DataLoaderSQLite,
     def clear_text_box(value):
         sids_input.value = ""
         sids_upload_btn.clear()
-    pn.bind(clear_text_box, value=sids_clear_btn, watch=True)
+    # pn.bind(clear_text_box, value=sids_clear_btn, watch=True)
 
     # Source selection via embedding plot
     box_selector = streams.BoundsXY(source=bg_emb,
                                     bounds=(-0.1, -0.1, 0.1, 0.1))
 
-    def update_selection_via_plot(bounds: tuple[float, float, float, float]):
-        tinit = time.time()
-        sids = embedding.find_sids_in_box(
-            box_bounds=bounds,
-            x_dim=x_sel.value,
-            y_dim=y_sel.value,
-        )
-        sids_upload_btn.clear()
-        sids_input.value = "\n".join([str(s) for s in sids])
-        sids_pipe.send(sids)
-        logger.info(f"Sending to sids_pipe: {time.time()-tinit:0.4f}")
-        update_plotted_sids(sids=sids)
-    # TODO, WHY WATCH DOES NOT WORK WITH THIS ONE?
-    #bind_box_sel = pn.bind(update_selection_via_plot,
-    #                       bounds=box_selector.param.bounds)
-
-    def update_embedding_selection(data: list[int], x_dim: str, y_dim: str):
-        tinit = time.time()
-        coordinates = embedding.get_2d_embedding(
-            sids=np.array(data), x_dim=x_dim, y_dim=y_dim)
-        fg_emb = hv.Points(
-            coordinates, kdims=['x', 'y']
-        ).opts(marker='star', size=5, alpha=0.25)
-        logger.info(f"Update embedding: {time.time()-tinit:0.4f}")
-        return fg_emb
-
-    #sel_emb = hv.DynamicMap(update_embedding_selection,
-    #                        streams={'data': sids_pipe} | emb_stream)
     class UserData:
         def __init__(self):
             self.selected_data = None
@@ -226,7 +183,7 @@ def build_panel(plotter: DataLoaderSQLite,
                 return io.StringIO(sids_txt)
 
         def update_selection_via_plot(self, expr):
-            print("update_selection", expr, ls.selection_expr, self.last_expr)
+            # print("update_selection", expr, ls.selection_expr, self.last_expr)
             expr = ls.selection_expr
             if expr is None:
                 return
@@ -237,6 +194,26 @@ def build_panel(plotter: DataLoaderSQLite,
                 logger.info(f"Update selection via box: {time.time()-tinit:0.4f}")
                 self.resample()
                 self.update_trigger.clicks += 1
+
+        def update_selection_via_upload(self, value):
+            tinit = time.time()
+            from io import StringIO
+            try:
+                text = StringIO(value.decode("utf8"))
+            except Exception as e:
+                logger.error(f"Failed to parse text: {e}")
+                pn.state.notifications.error('Error reading the uploaded file.')
+                return
+            df = embedding.validate_uploaded_sources(text)
+            if df is None:
+                pn.state.notifications.error('Error parsing the uploaded file.')
+            else:
+                n_sources = len(df)
+                pn.state.notifications.info(f'{n_sources} sources found in the dataset.')
+            self.selected_data = df
+            logger.info(f"Validate uploaded sids: {time.time()-tinit:0.4f}")
+            self.resample()
+            self.update_trigger.clicks += 1
 
         def resample(self, *args, **kwargs):
             if self.selected_data is None:
@@ -283,6 +260,14 @@ def build_panel(plotter: DataLoaderSQLite,
             "Downloads the content of the text box as a sids.txt file"
         )
     )
+
+    # Upload CSV with selection
+    sids_upload_btn = pn.widgets.FileInput(
+        name="📤 Upload", width=3*button_width, sizing_mode="fixed",
+        multiple=False, directory=False, accept='.csv,.txt',
+    )
+
+    pn.bind(user_data.update_selection_via_upload, sids_upload_btn, watch=True)
 
     def plot_class(x_dim, y_dim, name='none'):
         if name == 'none':
@@ -501,7 +486,7 @@ if __name__.startswith("bokeh"):
     # More details about the classes at:
     # https://www.aanda.org/articles/aa/full_html/2023/06/aa45591-22/aa45591-22.html
     with open(data_dir / 'class_names.json', 'r') as f:
-        class_metadata = json.load(f)
+        class_description = json.load(f)
     if 'plotter' in pn.state.cache:
         plotter = pn.state.cache['plotter']
     else:
@@ -519,9 +504,10 @@ if __name__.startswith("bokeh"):
         )
     pn.extension(loading_indicator=True,
                  loading_spinner='dots',
+                 notifications=True,
                  global_loading_spinner=True)
     hv.extension('bokeh')
     gv.extension('bokeh')
-    dashboard = build_panel(plotter, emb, class_metadata, data_dir,
+    dashboard = build_panel(plotter, emb, class_description,
                             n_cols=3, n_rows=3)
     dashboard.servable(title='GaiaNet Embedding Explorer')
