@@ -136,7 +136,6 @@ def build_panel(plotter: DataLoaderSQLite,
         code="navigator.clipboard.writeText(source.value);"
     )
 
-    
     def disable_download(event):
         sids = sids_input.value
         if sids == '':
@@ -240,7 +239,6 @@ def build_panel(plotter: DataLoaderSQLite,
                 self.update_trigger.clicks += 1
 
         def resample(self, *args, **kwargs):
-            print("resample", args, kwargs)
             if self.selected_data is None:
                 return
             tinit = time.time()
@@ -295,6 +293,21 @@ def build_panel(plotter: DataLoaderSQLite,
     sel_class_emb = hv.DynamicMap(
         plot_class,
         streams=emb_stream | {'name': class_sel.param.value}
+    )
+
+    def plot_selection(trigger, x_dim, y_dim):
+        kdims = [x_dim, y_dim]
+        if user_data.selected_data is None:
+            points = hv.Points([], kdims)
+        else:
+            points = hv.Points(user_data.selected_data, kdims)
+        # DATASHADE IF SELECTION IS MORE THAN 10K
+        return points.opts(alpha=0.5, color='red')
+
+    sel_emb = hv.DynamicMap(
+        pn.bind(plot_selection,
+                trigger=user_data.update_trigger.param.clicks,
+                x_dim=x_sel.param.value, y_dim=y_sel.param.value)
     )
 
     # Light curve and spectra plots
@@ -446,7 +459,7 @@ def build_panel(plotter: DataLoaderSQLite,
     bg_emb = datashade_embedding(bg_emb)
     return pn.Row(
         pn.Column(
-            hv.Overlay([ls(bg_emb), sel_class_emb]).collate(),
+            hv.Overlay([ls(bg_emb), sel_emb, sel_class_emb]).collate(),
             pn.Row(x_sel, y_sel, class_sel),
             pn.Row(
                 pn.Column(
