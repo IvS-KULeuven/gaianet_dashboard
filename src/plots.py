@@ -4,7 +4,8 @@ from functools import partial
 import numpy as np
 import holoviews as hv
 import holoviews.operation.datashader as hd
-from holoviews.operation.stats import univariate_kde
+import geoviews as gv
+from cartopy import crs
 
 
 def labeled_bgcolor(plot, _):
@@ -162,20 +163,85 @@ dmdt_layout = partial(make_layout, plot_function=plot_dmdt)
 # TODO: MAKE DYNAMIC MAP SCALE THE AXES
 def datashade_embedding(emb_plot,
                         cnorm: str = "eq_hist",
-                        cmap="gray"):
-    return hd.dynspread(
-        hd.datashade(emb_plot, cmap=cmap, cnorm=cnorm),
-        max_px=3, threshold=0.75, shape='circle',
-    ).opts(width=650, height=500, tools=['box_select'],
-           active_tools=['box_select', 'wheel_zoom'])
+                        cmap: str = "gray",
+                        width: int = 650,
+                        height: int = 500,
+                        bound: float = 3.5):
+    plot = hd.datashade(emb_plot, cmap=cmap, cnorm=cnorm)
+    plot = hd.dynspread(plot, max_px=3, threshold=0.75, shape='circle')
+    return plot.opts(
+        width=width, height=height, xlim=(-bound, bound), ylim=(-bound, bound),
+        tools=['box_select'], active_tools=['box_select', 'wheel_zoom']
+    )
 
 
-def plot_feature(data: np.ndarray | list,
-                 col_name: str,
-                 color: str,
-                 bw: float = 0.1,
-                 bin_range: tuple[float, float] | None = None,
-                 ):
-    plot = hv.Distribution(data, kdims=[col_name])
-    plot = univariate_kde(plot, bin_range=bin_range, bandwidth=bw, n_samples=300)
-    return plot.opts(color=color, framewise=True, alpha=0.5)
+def plot_sky(coordinates: np.ndarray | list,
+             color: str = 'gray'):
+    kdims = ['longitude', 'latitude']
+    return gv.Points(coordinates, kdims=kdims).opts(
+        color=color, size=3, alpha=0.5, projection=crs.Mollweide()
+    )
+
+
+def datashade_skymap(sky_plot,
+                     cnorm: str = "eq_hist",
+                     cmap: str = "gray",
+                     width: int = 800,
+                     height: int = 400):
+    plot = hd.datashade(sky_plot, cmap=cmap, cnorm=cnorm)
+    plot = hd.dynspread(plot)
+    return plot.opts(
+        projection=crs.Mollweide(), width=width, height=height
+    )
+
+
+def label_histogram(data: np.ndarray):
+    bar_data = [('', 0)]
+    data = data[data != np.array(None)]
+    labels, counts = np.unique(data, return_counts=True)
+    if len(counts) > 0:
+        idx = np.argsort(counts)[::-1]
+        labels, counts = labels[idx], counts[idx]
+        if len(labels) > 5:
+            labels = labels[:5]
+            counts = counts[:5]
+        bar_data = [(str(label), count) for label, count in zip(labels, counts)]
+    return bar_data
+
+
+def plot_features(user_data):
+    plots = []
+    pretty_name = {'magnitude_mean': 'Mean magnitude (g)',
+                   'magnitude_std': 'StdDev magnitude (g)',
+                   'bp_rp': 'Color (Mean Bp - Mean Rp)',
+                   'NUFFT_best_frequency': 'Log dominant period',
+                   'period': 'Dominant period [days]'}
+    for col in ['magnitude_mean', 'magnitude_std', 'bp_rp', 'NUFFT_best_frequency']:
+        fplots = []
+        for selection, color in zip(
+            [user_data.selected_emb, user_data.selected_cu7, user_data.selected_sos],
+            ['red', 'blue', 'green']
+        ):
+            data = [0, 0]
+            if selection.has_data:
+                data = selection.features[col]
+            col_name = pretty_name[col]
+            fplots.append(
+                hv.Area((data[0], data[1]), kdims=[col_name], vdims=['Density']).opts(color=color, alpha=0.5, framewise=True)
+            )
+        plots.append(hv.Overlay(fplots).opts(shared_axes=True, width=350, height=200))
+
+    for labels, kdim in zip(
+        [user_data.selected_emb.labels_cu7, user_data.selected_emb.labels_sos],
+        ['Catalog label', 'SOS label'],
+    ):
+        bar_data = [('', 0)]
+        if user_data.selected_emb.has_data:
+            bar_data = label_histogram(labels)
+        plots.append(
+            hv.Bars(
+                bar_data, kdims=kdim, vdims=['Count']
+            ).opts(width=350, height=250, color='red', framewise=True, xrotation=15)
+        )
+    layout = hv.Layout(plots).cols(2).opts(shared_axes=False)
+    return layout
