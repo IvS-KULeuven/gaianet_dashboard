@@ -1,6 +1,6 @@
 outs:
-- md5: c75c62d00c38e2f2d46d25ec19bfedf2.dir
-  size: 1204277128
-  nfiles: 4
+- md5: c2fcb1dd1c2ace41ac00f13be82a1716.dir
+  size: 1498873314
+  nfiles: 5
   hash: md5
   path: latent_space
