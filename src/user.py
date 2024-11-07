@@ -10,6 +10,8 @@ def kde(data,
         bandwidth: str | float = 0.1,
         resolution: int = 256,
         ) -> tuple[np.ndarray, np.ndarray]:
+    if len(data) < 2:
+        return [0], [0]
     kernel = gaussian_kde(data, bw_method=bandwidth)
     if lower_bound is None:
         lower_bound = np.amin(data)
