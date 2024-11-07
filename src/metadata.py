@@ -49,7 +49,14 @@ class MetadataHandler:
                  features_path: Path,
                  meta_dir: Path,
                  ):
-        embedding = pl.scan_csv(
+        match embedding_path.suffix:
+            case '.csv':
+                reader_fn = pl.scan_csv
+            case '.parquet':
+                reader_fn = pl.scan_parquet
+            case _:
+                raise ValueError("Only parquet and csv are supported.")
+        embedding = reader_fn(
             embedding_path
         ).select(
             ['source_id', r'^embedding_.$']
