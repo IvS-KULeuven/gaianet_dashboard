@@ -1,4 +1,5 @@
 import time
+from pathlib import Path
 from io import StringIO
 import logging
 from functools import partial
@@ -28,6 +29,7 @@ colors = [
 def build_dashboard(plotter: DataLoaderSQLite,
                     embedding: MetadataHandler,
                     class_metadata: dict,
+                    cache_path: Path,
                     n_rows: int = 3,
                     n_cols: int = 3,
                     ):
@@ -82,12 +84,15 @@ def build_dashboard(plotter: DataLoaderSQLite,
     cu7_training_class_sel = pn.widgets.Select(
         name='CU7 training set',
         groups=class_metadata,
-        value='none'
-    )
+        value='none', width=200)
     sos_class_sel = pn.widgets.Select(
         name='SOS classification',
         options={'No selection': 'none'} | embedding.sos_classes,
-        value='none')
+        value='none', width=200)
+    vari_class_sel = pn.widgets.Select(
+        name='Vari classification',
+        options={'No selection': 'none'} | embedding.vari_classes,
+        value='none', width=200)
 
     # Source selection via textbox
     sids_input = pn.widgets.TextAreaInput(
@@ -139,10 +144,19 @@ def build_dashboard(plotter: DataLoaderSQLite,
                                     bounds=(-0.1, -0.1, 0.1, 0.1))
 
     class UserData:
-        def __init__(self):
-            self.selected_emb = UserSelection()
-            self.selected_sos = UserSelection()
-            self.selected_cu7 = UserSelection()
+        def __init__(self, cache_path: Path):
+            self.selected_emb = UserSelection(
+                cache_features=False, cache_folder=cache_path
+            )
+            self.selected_sos = UserSelection(
+                cache_features=True, cache_folder=cache_path / 'sos'
+            )
+            self.selected_cu7 = UserSelection(
+                cache_features=True, cache_folder=cache_path / 'cu7'
+            )
+            self.selected_vari = UserSelection(
+                cache_features=True, cache_folder=cache_path / 'vari'
+            )
             self.last_expr = None
             self.sids = [None]*n_plots
             self.labels = [None]*n_plots
@@ -158,10 +172,12 @@ def build_dashboard(plotter: DataLoaderSQLite,
 
         def update_selection_sos(self, class_name: str):
             tinit = time.time()
+            if class_name != 'none':
+                vari_class_sel.value = 'none'
             self.selected_sos.fill_selection(
                 embedding.filter_embedding(
                     class_name=class_name, class_column='SOS_class'
-                )
+                ), class_name.replace(" ", "")
             )
             logger.info(f"Filling SOS selection: {time.time()-tinit:0.4f}")
             self._trigger_update()
@@ -171,7 +187,19 @@ def build_dashboard(plotter: DataLoaderSQLite,
             self.selected_cu7.fill_selection(
                 embedding.filter_embedding(
                     class_name=class_name, class_column='class'
-                )
+                ), class_name.replace(" ", "")
+            )
+            logger.info(f"Filling CU7 selection: {time.time()-tinit:0.4f}")
+            self._trigger_update()
+
+        def update_selection_vari(self, class_name: str):
+            tinit = time.time()
+            if class_name != 'none':
+                sos_class_sel.value = 'none'
+            self.selected_vari.fill_selection(
+                embedding.filter_embedding(
+                    class_name=class_name, class_column='vari_class'
+                ), class_name.replace(" ", "").replace("/", "-")
             )
             logger.info(f"Filling CU7 selection: {time.time()-tinit:0.4f}")
             self._trigger_update()
@@ -192,7 +220,7 @@ def build_dashboard(plotter: DataLoaderSQLite,
                 selection = embedding.filter_embedding_bound(expr)
                 n_sources = len(selection)
                 # pn.state.notifications.info(f'{n_sources} sources selected.')
-                self.selected_emb.fill_selection(selection)
+                self.selected_emb.fill_selection(selection, "")
                 self.last_expr = expr
                 logger.info(f"Update selection via box ({n_sources}): {time.time()-tinit:0.4f}")
                 self.resample()
@@ -206,7 +234,7 @@ def build_dashboard(plotter: DataLoaderSQLite,
             else:
                 n_sources = len(selection)
                 pn.state.notifications.info(f'{n_sources} sources found in the dataset.')
-                self.selected_emb.fill_selection(selection)
+                self.selected_emb.fill_selection(selection, "")
                 logger.info(f"Validate input sids: {time.time()-tinit:0.4f}")
                 self.resample()
                 self._trigger_update()
@@ -259,7 +287,7 @@ def build_dashboard(plotter: DataLoaderSQLite,
             logger.info(f"Update data products: {time.time()-tinit:0.4f}")
             self.resample_trigger.clicks += 1
 
-    user_data = UserData()
+    user_data = UserData(cache_path=cache_path)
 
     sids_submit_btn = pn.widgets.Button(
         name="✅ Submit", width=button_width,
@@ -309,6 +337,13 @@ def build_dashboard(plotter: DataLoaderSQLite,
                 x_dim=x_sel.param.value, y_dim=y_sel.param.value)
     )
     pn.bind(user_data.update_selection_cu7, cu7_training_class_sel.param.value, watch=True)
+
+    vari_class_emb = hv.DynamicMap(
+        pn.bind(partial(plot_selection, selection=user_data.selected_vari),
+                trigger=user_data.update_trigger.param.clicks,
+                x_dim=x_sel.param.value, y_dim=y_sel.param.value)
+    )
+    pn.bind(user_data.update_selection_vari, vari_class_sel.param.value, watch=True)
 
     # Light curve and spectra plots
     fold_check = pn.widgets.Checkbox(name='Fold light curves', value=False)
@@ -394,7 +429,7 @@ def build_dashboard(plotter: DataLoaderSQLite,
             plot = plot_sky([], color=color)
         logger.info(f"Update sky map: {time.time()-tinit:0.4f}")
         return plot
-
+    """
     sky_cu7 = hv.DynamicMap(
         pn.bind(
             partial(update_sky_selection, selection=user_data.selected_cu7, color='blue'),
@@ -407,6 +442,7 @@ def build_dashboard(plotter: DataLoaderSQLite,
             trigger=user_data.update_trigger.param.clicks
         )
     )
+    """
     sky_sel = hv.DynamicMap(
         pn.bind(
             partial(update_sky_selection, selection=user_data.selected_emb, color='red'),
@@ -423,7 +459,7 @@ def build_dashboard(plotter: DataLoaderSQLite,
         ('Sampled spectra', xp_dmap),
         ('DMDT', dmdt_dmap),
         ('Sky map', hv.Overlay([
-            bg_sky * sky_cu7 * sky_sos * sky_sel,
+            bg_sky * sky_sel,
         ]).collate()),
         ('Features', feature_dmap),
         dynamic=True
@@ -432,14 +468,17 @@ def build_dashboard(plotter: DataLoaderSQLite,
     sos_class_emb = datashade_embedding(sos_class_emb, cmap='greens')
     sel_emb = datashade_embedding(sel_emb, cmap='reds')
     cu7_training_class_emb = datashade_embedding(cu7_training_class_emb, cmap='blues')
+    vari_class_emb = datashade_embedding(vari_class_emb, cmap='greens')
     # bg_emb = ls(bg_emb)
-    emb_overlay = hv.Overlay([bg_emb, sos_class_emb, sel_emb, cu7_training_class_emb])
+    emb_overlay = hv.Overlay(
+        [bg_emb, sos_class_emb, sel_emb, vari_class_emb, cu7_training_class_emb]
+    )
     return pn.Row(
         pn.Column(
             pn.Tabs(('Unlabeled', emb_overlay.collate()),
                     ('Labeled', bg_emb2_dyn), dynamic=True),
             # pn.Row(x_sel, y_sel, cu7_training_class_sel),
-            pn.Row(sos_class_sel, cu7_training_class_sel),
+            pn.Row(sos_class_sel, vari_class_sel, cu7_training_class_sel),
             pn.Row(
                 pn.Column(
                     pn.GridBox(

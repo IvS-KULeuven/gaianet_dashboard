@@ -56,5 +56,5 @@ if __name__.startswith("bokeh"):
     hv.extension('bokeh')
     gv.extension('bokeh')
     dashboard = build_dashboard(plotter, emb, class_description,
-                                n_cols=3, n_rows=3)
+                                cache_path=data_dir / 'cache', n_cols=3, n_rows=3)
     dashboard.servable(title='GaiaNet Embedding Explorer')

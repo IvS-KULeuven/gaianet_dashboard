@@ -76,6 +76,11 @@ class MetadataHandler:
         ).select(
             ['source_id', 'SOS_class']
         )  # .rename({'SOS_subclass': 'class', 'SOS_class': 'macro_class'})
+        vari_labels = pl.scan_csv(
+            meta_dir / 'labels_vari.csv'
+        ).select(
+            ['source_id', 'vari_class']
+        )
         features = pl.scan_parquet(features_path)
         self.metadata = features.join(
             meta, on='source_id',
@@ -85,6 +90,9 @@ class MetadataHandler:
             labels, on='source_id', how='left'
         ).join(
             sos_labels, on='source_id', how='left'
+        ).join(
+            vari_labels, on='source_id', how='left'
+
         ).collect()
         self.metadata_hv = hv.Dataset(self.metadata.to_pandas())
         self.labeled_metadata = self.metadata.filter(
@@ -108,6 +116,10 @@ class MetadataHandler:
             ], separator=" ").alias("class_with_len"),
         ).sort('SOS_class').select(['class_with_len', 'SOS_class']).to_dict(as_series=False)
         self.sos_classes = {v1: v2 for v1, v2 in zip(sos_names['class_with_len'], sos_names['SOS_class'])}
+        vari_names = self.metadata.select(
+            'vari_class'
+        ).drop_nulls().unique().to_series().sort().to_list()
+        self.vari_classes = {v: v for v in vari_names}
 
     def get_all_metadata(self, sids: list[int]) -> pl.DataFrame:
         return self.metadata.filter(filter_sids_expression(sids))

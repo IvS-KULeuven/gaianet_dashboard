@@ -219,8 +219,9 @@ def plot_features(user_data):
     for col in ['magnitude_mean', 'magnitude_std', 'bp_rp', 'NUFFT_best_frequency']:
         fplots = []
         for selection, color in zip(
-            [user_data.selected_emb, user_data.selected_cu7, user_data.selected_sos],
-            ['red', 'blue', 'green']
+            [user_data.selected_emb, user_data.selected_cu7,
+             user_data.selected_sos, user_data.selected_vari],
+            ['red', 'blue', 'green', 'green']
         ):
             data = [0, 0]
             if selection.has_data:
